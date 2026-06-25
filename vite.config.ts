@@ -10,4 +10,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    port: 5175,
+    proxy: {
+      '/api/data': {
+        target: 'https://apis.data.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/data/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+        },
+      },
+    },
+  },
 })
