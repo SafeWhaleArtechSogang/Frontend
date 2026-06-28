@@ -140,14 +140,12 @@ export default function MapPage() {
   const [showListButton, setShowListButton] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(68);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [showLocationModal, setShowLocationModal] = useState(false);
   const [selectedPin, setSelectedPin] = useState<PinItem | null>(null);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [kakaoMap, setKakaoMap] = useState<any>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const allPins = DUMMY_PINS;
   const minePins = useMemo(() => allPins.filter((p) => p.isMine), [allPins]);
@@ -231,16 +229,7 @@ export default function MapPage() {
       navigate("/login", { state: { from: "/report" } });
       return;
     }
-    setShowLocationModal(true);
-  };
-  const handleLocationAllow = () => {
-    setShowLocationModal(false);
-    navigator.geolocation.getCurrentPosition(() => {}, () => {});
-    cameraInputRef.current?.click();
-  };
-  const handleLocationDeny = () => {
-    setShowLocationModal(false);
-    cameraInputRef.current?.click();
+    navigate("/report");
   };
 
   useEffect(() => {
@@ -726,37 +715,6 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* Hidden camera input */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={() => navigate("/report")}
-      />
-
-      {/* Location Permission Modal */}
-      {showLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={handleLocationDeny} />
-          <div className="relative bg-white rounded-[10px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] p-5 mx-6 w-full max-w-[270px] flex flex-col items-center gap-[30px]">
-            <div className="flex flex-col items-center gap-2.5">
-              <LocateFixed className="w-6 h-6 text-[#1d1d1f]" />
-              <div className="flex flex-col items-center gap-2">
-                <p className="text-base font-bold text-[#1d1d1f] tracking-[-0.4px]">위치 사용을 허용하겠어요?</p>
-                <p className="text-xs font-medium text-[#7A7A7A] tracking-[-0.3px] text-center leading-[1.48] whitespace-nowrap">
-                  정확한 신고 위치 등록을 위해 위치 정보가 필요합니다.<br />신고 등록 시에만 사용됩니다.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 w-full">
-              <button className="flex-1 h-11 border border-[#262626] rounded-[4px] text-base font-semibold text-[#262626] tracking-[-0.4px]" onClick={handleLocationDeny}>허용 안 함</button>
-              <button className="flex-1 h-11 bg-black rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px]" onClick={handleLocationAllow}>허용</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
