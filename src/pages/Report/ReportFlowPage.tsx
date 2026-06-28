@@ -6,7 +6,7 @@ import { CATEGORIES } from "@/types";
 import type { DangerLevel, Category } from "@/types";
 import { Check, AlertTriangle, Phone } from "lucide-react";
 
-type Step = "emergency" | "classify" | "location" | "proposal" | "confirm" | "complete";
+type Step = "emergency" | "input" | "classify" | "location" | "proposal" | "confirm" | "complete";
 type LocationType = "outdoor" | "indoor";
 
 const STEPPER_LABELS = ["분류", "위치", "제안서", "확인"];
@@ -45,7 +45,6 @@ export default function ReportFlowPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [agreed, setAgreed] = useState(false);
-  const [showOtherForm, setShowOtherForm] = useState(false);
 
   // ─── 위치 결정 ───
   const [locationType, setLocationType] = useState<LocationType>("outdoor");
@@ -87,8 +86,13 @@ export default function ReportFlowPage() {
     }, 300);
   };
 
-  // 응급 아님 → 분석 시작하고 분류 단계로
+  // 응급 아님 → 사진·메모 입력 단계로
   const handleProceedReport = () => {
+    setStep("input");
+  };
+
+  // 사진·메모 입력 완료 → AI 분석 시작
+  const handleStartReport = () => {
     setStep("classify");
     handleStartAnalysis();
   };
@@ -221,6 +225,65 @@ export default function ReportFlowPage() {
     );
   }
 
+  // ─── Input Step (사진 1장 + 메모 1줄) ───
+  if (step === "input") {
+    return (
+      <div className="flex flex-col min-h-dvh">
+        <Header title="신고 등록" closeMode onBack={handleClose} />
+        <ReportStepper currentStep={-1} steps={STEPPER_LABELS} />
+
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
+            {/* 사진 */}
+            <p className="text-sm font-semibold text-[#262626] tracking-[-0.35px] mb-2">
+              사진
+            </p>
+            <div className="w-full aspect-square bg-[#E9E9E9] rounded-[10px]" />
+            <p className="mt-2 text-xs font-medium text-[#7A7A7A] tracking-[-0.3px] leading-[1.48] text-center">
+              방금 촬영한 사진이에요. 위험 요소가 잘 보이는지 확인해주세요.
+            </p>
+
+            {/* 메모 */}
+            <div className="mt-6">
+              <p className="text-sm font-semibold text-[#262626] tracking-[-0.35px] mb-2">
+                메모
+              </p>
+              <div className="relative">
+                <textarea
+                  className="w-full h-[90px] p-3 border border-[#E9E9E9] rounded-[4px] text-base resize-none outline-none placeholder:text-[#C4C4C4] tracking-[-0.35px]"
+                  placeholder="어떤 위험인지 한 줄로 적어주세요. (예: 계단 손잡이가 흔들려요)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  maxLength={100}
+                />
+                <span className="absolute bottom-3 right-3 text-xs text-[#C4C4C4] tracking-[-0.3px]">
+                  {description.length}/100
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 bg-white border-t border-[#E9E9E9] px-4 py-3">
+            <button
+              className="w-full h-11 bg-[#262626] rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px] disabled:opacity-40"
+              disabled={!description.trim()}
+              onClick={handleStartReport}
+            >
+              AI 분석 시작
+            </button>
+          </div>
+        </div>
+
+        <CancelSheet
+          open={showCancelSheet}
+          onContinue={() => setShowCancelSheet(false)}
+          onSave={() => navigate("/map")}
+          onDiscard={() => navigate("/map")}
+        />
+      </div>
+    );
+  }
+
   // ─── AI Analyzing ───
   if (isAnalyzing) {
     return (
@@ -274,59 +337,14 @@ export default function ReportFlowPage() {
 
         {!selectedCategory ? (
           <div className="flex-1" />
-        ) : showOtherForm ? (
-          // ─── 기타 선택 후 직접 입력 ───
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
-              <PhotoTagsHeader
-                category={selectedCategory.label}
-                dangerLevel={dangerLevel}
-                description={DEMO_DESCRIPTION}
-              />
-
-              <div className="mt-4 bg-[#F5F5F5] rounded-[4px] py-1.5 px-4 text-center">
-                <p className="text-xs font-semibold text-black tracking-[-0.3px] leading-[1.48]">
-                  AI가 분류하지 못했어요. 직접 작성해주세요.
-                </p>
-              </div>
-
-              <div className="mt-4">
-                <p className="text-sm font-semibold text-[#262626] tracking-[-0.35px] mb-2">
-                  위험 요소 설명
-                </p>
-                <div className="relative">
-                  <textarea
-                    className="w-full h-[160px] p-3 border border-[#E9E9E9] rounded-[4px] text-base resize-none outline-none placeholder:text-[#C4C4C4] tracking-[-0.35px]"
-                    placeholder="위치, 상황, 영향 범위를 자세히 설명해주세요."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    maxLength={200}
-                  />
-                  <span className="absolute bottom-3 right-3 text-xs text-[#C4C4C4] tracking-[-0.3px]">
-                    {description.length}/200
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="sticky bottom-0 bg-white border-t border-[#E9E9E9] px-4 py-3">
-              <button
-                className="w-full h-11 bg-[#262626] rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px] disabled:opacity-40"
-                disabled={!description.trim()}
-                onClick={() => setStep("location")}
-              >
-                다음
-              </button>
-            </div>
-          </div>
         ) : (
-          // ─── 일반 분류 완료 ───
+          // ─── 분류 완료 ───
           <div className="flex-1 flex flex-col">
             <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
               <PhotoTagsHeader
                 category={selectedCategory.label}
                 dangerLevel={dangerLevel}
-                description={DEMO_DESCRIPTION}
+                description={description || DEMO_DESCRIPTION}
               />
 
               <div className="mt-4 bg-[#F5F5F5] rounded-[4px] py-1.5 px-4 text-center">
@@ -387,24 +405,14 @@ export default function ReportFlowPage() {
             <div className="sticky bottom-0 bg-white border-t border-[#E9E9E9] px-4 py-3 flex gap-2">
               <button
                 className="w-[125px] shrink-0 h-11 border border-[#262626] rounded-[4px] text-base font-semibold text-[#262626] tracking-[-0.4px]"
-                onClick={() => {
-                  setSelectedCategory(null);
-                  setDangerLevel(null);
-                  setShowOtherForm(false);
-                }}
+                onClick={handleStartAnalysis}
               >
                 다시 분류
               </button>
               <button
                 className="flex-1 h-11 bg-black rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px] disabled:opacity-40"
                 disabled={!dangerLevel}
-                onClick={() => {
-                  if (selectedCategory?.id === 11) {
-                    setShowOtherForm(true);
-                  } else {
-                    setStep("location");
-                  }
-                }}
+                onClick={() => setStep("location")}
               >
                 다음
               </button>
@@ -434,7 +442,7 @@ export default function ReportFlowPage() {
             <PhotoTagsHeader
               category={selectedCategory?.label || ""}
               dangerLevel={dangerLevel}
-              description={DEMO_DESCRIPTION}
+              description={description || DEMO_DESCRIPTION}
             />
 
             <div className="mt-4 bg-[#F5F5F5] rounded-[4px] py-1.5 px-4 text-center">
@@ -623,7 +631,7 @@ export default function ReportFlowPage() {
             category={selectedCategory?.label || ""}
             dangerLevel={dangerLevel}
             title={locationText}
-            description={DEMO_DESCRIPTION}
+            description={description || DEMO_DESCRIPTION}
           />
 
           {/* Details Card */}

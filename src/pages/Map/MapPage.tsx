@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, List, LocateFixed, ChevronRight, X, Share, Heart } from "lucide-react";
+import { Plus, List, LocateFixed, ChevronRight, X, Share, Heart, UserRound } from "lucide-react";
 import { useAuth } from "@/App";
 import type { DangerLevel, ReportStatus } from "@/types";
 
@@ -33,7 +33,7 @@ const DUMMY_PINS: PinItem[] = [
     id: "1",
     title: "서강대학교 정문 앞 횡단보도",
     description: "정문 앞 횡단보도 옆 가드레일 일부가 파손되어 있음. 정문 앞 횡단보도 옆 가드레일 일부가 파손되어 있음.",
-    category: "안전시설 파손 · 부재",
+    category: "교내 교통 위험",
     dangerLevel: "high",
     status: "received",
     school: "서강대학교",
@@ -49,7 +49,7 @@ const DUMMY_PINS: PinItem[] = [
     id: "2",
     title: "서강대학교 김대건관",
     description: "김대건관 2층 복도 난간 일부가 흔들려 보행 시 위험함. 고정이 헐거워져 기대면 안전사고 우려가 있음.",
-    category: "안전시설 파손 · 부재",
+    category: "추락·낙하 위험",
     dangerLevel: "medium",
     status: "confirmed",
     school: "서강대학교",
@@ -65,7 +65,7 @@ const DUMMY_PINS: PinItem[] = [
     id: "3",
     title: "서강대학교 정하상관",
     description: "정하상관 1층 출입문 유리에 금이 가 있어 파손 시 부상 위험이 있음. 통행이 잦은 구간이라 빠른 점검이 필요함.",
-    category: "안전시설 파손 · 부재",
+    category: "구조물 위험",
     dangerLevel: "low",
     status: "reviewing",
     school: "서강대학교",
@@ -81,7 +81,7 @@ const DUMMY_PINS: PinItem[] = [
     id: "4",
     title: "서강대학교 하비에르관",
     description: "하비에르관 정문 앞 보도블록이 들떠 있어 보행자가 걸려 넘어질 위험이 있음. 비 오는 날 미끄러짐 사고 우려.",
-    category: "노면 파손",
+    category: "보행 표면 위험",
     dangerLevel: "high",
     status: "complete",
     school: "서강대학교",
@@ -137,6 +137,7 @@ export default function MapPage() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [sheetExpanded, setSheetExpanded] = useState(true);
   const [sheetFullscreen, setSheetFullscreen] = useState(false);
+  const [showListButton, setShowListButton] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(68);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -151,10 +152,10 @@ export default function MapPage() {
   const allPins = DUMMY_PINS;
   const minePins = useMemo(() => allPins.filter((p) => p.isMine), [allPins]);
 
-  const FILTER_TABS = useMemo(() => [
+  const FILTER_TABS = [
     { id: "all", label: "전체 보기" },
-    { id: "mine", label: `My핀 · ${minePins.length}개` },
-  ], [minePins.length]);
+    { id: "mine", label: "내 신고" },
+  ];
 
   function filterPins(pins: PinItem[], filter: string): PinItem[] {
     switch (filter) {
@@ -248,6 +249,11 @@ export default function MapPage() {
     ro.observe(sheetRef.current);
     return () => ro.disconnect();
   }, []);
+
+  // 시트가 펼쳐지면 리스트 버튼은 즉시 숨김 (내려올 때만 트랜지션 끝에서 표시)
+  useEffect(() => {
+    if (sheetExpanded || sheetFullscreen) setShowListButton(false);
+  }, [sheetExpanded, sheetFullscreen]);
 
   // 커스텀 마커 SVG 생성
   const createPinSvg = (level: DangerLevel) => {
@@ -449,7 +455,7 @@ export default function MapPage() {
 
       {/* Danger Level Legend — 검색창 아래 우측 상단 */}
       {!showSearchResults && (
-        <div className="absolute right-4 top-[64px] z-10 flex items-center gap-2.5 bg-white rounded-[10px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] px-3 py-1.5">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[64px] z-10 flex items-center gap-2.5 bg-white rounded-[10px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] px-3 py-1.5">
           <span className="text-[10px] font-semibold text-[#262626] tracking-[-0.25px]">위험도</span>
           {(["high", "medium", "low"] as DangerLevel[]).map((level) => (
             <div key={level} className="flex items-center gap-1">
@@ -462,21 +468,21 @@ export default function MapPage() {
 
       {/* Right FAB column: 위치 → 신고 */}
       <button
-        className="absolute right-4 z-20 w-11 h-11 bg-white rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] flex items-center justify-center transition-all duration-300"
+        className="absolute right-4 z-20 w-11 h-11 bg-white rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] flex items-center justify-center"
         style={{ bottom: `${sheetHeight + 15 + 44 + 15}px` }}
         onClick={() => {}}
       >
         <LocateFixed className="w-5 h-5 text-text-primary" />
       </button>
       <button
-        className="absolute right-4 z-20 w-11 h-11 bg-primary rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] flex items-center justify-center transition-all duration-300"
+        className="absolute right-4 z-20 w-11 h-11 bg-primary rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] flex items-center justify-center"
         style={{ bottom: `${sheetHeight + 15}px` }}
         onClick={handleReportStart}
       >
         <Plus className="w-5 h-5 text-text-inverse" />
       </button>
-      {!sheetExpanded && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-20 transition-all duration-300" style={{ bottom: `${sheetHeight + 15}px` }}>
+      {showListButton && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-20" style={{ bottom: `${sheetHeight + 15}px` }}>
           <button className="flex items-center gap-[5px] px-3 py-1.5 bg-white rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)]" onClick={() => setSheetExpanded(true)}>
             <List className="w-5 h-5 text-[#262626]" />
             <span className="text-sm font-medium text-[#262626] tracking-[-0.35px] whitespace-nowrap">안전핀 리스트</span>
@@ -488,6 +494,12 @@ export default function MapPage() {
       <div
         ref={sheetRef}
         className={`absolute bottom-0 left-0 right-0 z-30 bg-white shadow-[0px_-4px_20px_0px_rgba(0,0,0,0.15)] transition-all duration-300 overflow-hidden flex flex-col ${sheetFullscreen ? "rounded-none" : "rounded-t-[10px]"}`}
+        onTransitionEnd={(e) => {
+          // 시트가 완전히 내려온 뒤에만 리스트 버튼 표시
+          if (e.target === e.currentTarget && !sheetExpanded && !sheetFullscreen) {
+            setShowListButton(true);
+          }
+        }}
         style={{
           height: sheetFullscreen
             ? "100dvh"
@@ -640,21 +652,44 @@ export default function MapPage() {
         ) : (
           // ─── Pin List View ───
           <>
-            <div className="flex gap-2 px-4 pb-2.5 pt-2.5 overflow-x-auto scrollbar-hide shrink-0">
-              {FILTER_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`shrink-0 px-2.5 py-1 rounded-full border text-xs tracking-[-0.3px] whitespace-nowrap transition-colors ${
-                    activeFilter === tab.id
-                      ? "border-[#262626] font-semibold text-[#262626]"
-                      : "border-[#E9E9E9] font-medium text-[#7B7B7B]"
-                  }`}
-                  onClick={() => setActiveFilter(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* Profile */}
+            <button
+              className="flex items-center gap-3 px-4 pt-1 pb-1 shrink-0 w-full text-left"
+              onClick={() => navigate("/my-reports")}
+            >
+              <div className="w-[60px] h-[60px] rounded-[10px] bg-[#E9E9E9] shrink-0 flex items-center justify-center">
+                <UserRound className="w-7 h-7 text-[#7B7B7B]" />
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <span className="text-base font-semibold text-[#262626] tracking-[-0.4px] leading-[1.48]">
+                  김준수
+                </span>
+                <span className="text-xs font-medium text-[#7B7B7B] tracking-[-0.3px] leading-[1.48]">
+                  내 신고 {minePins.length}건
+                </span>
+              </div>
+              <span className="shrink-0 flex items-center gap-0.5 border border-[#E9E9E9] rounded-full pl-3 pr-2 py-1.5 text-xs font-semibold text-[#7B7B7B] tracking-[-0.3px] whitespace-nowrap">
+                내 신고
+                <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+            {sheetExpanded && (
+              <div className="flex gap-2 px-4 pb-2.5 pt-2.5 overflow-x-auto scrollbar-hide shrink-0">
+                {FILTER_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`shrink-0 px-2.5 py-1 rounded-full border text-xs tracking-[-0.3px] whitespace-nowrap transition-colors ${
+                      activeFilter === tab.id
+                        ? "border-[#262626] font-semibold text-[#262626]"
+                        : "border-[#E9E9E9] font-medium text-[#7B7B7B]"
+                    }`}
+                    onClick={() => setActiveFilter(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {sheetExpanded && (
               <div className="overflow-y-auto flex-1">
                 {filterPins(allPins, activeFilter).map((pin) => (

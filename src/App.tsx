@@ -4,6 +4,7 @@ import LoginPage from './pages/Login/LoginPage'
 import SchoolChangePage from './pages/SchoolSearch/SchoolChangePage'
 import MapPage from './pages/Map/MapPage'
 import ReportFlowPage from './pages/Report/ReportFlowPage'
+import MyReportsPage from './pages/MyReports/MyReportsPage'
 
 // ─── Auth Context ───
 interface AuthContextType {
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/school/change" element={<SchoolChangePage />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/report" element={<ReportFlowPage />} />
+        <Route path="/my-reports" element={<MyReportsPage />} />
       </Routes>
     </AuthContext.Provider>
   )
