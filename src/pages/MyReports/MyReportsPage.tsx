@@ -179,47 +179,6 @@ function ReportCard({ report }: { report: MyReport }) {
           </span>
         </div>
       </div>
-
-      {/* Status Timeline */}
-      <StatusTimeline status={report.status} />
-    </div>
-  );
-}
-
-function StatusTimeline({ status }: { status: ReportStatus }) {
-  const n = STATUS_FLOW.length;
-  const currentIndex = STATUS_FLOW.findIndex((s) => s.key === status);
-  const inset = (0.5 / n) * 100; // 첫/마지막 글자 중앙까지의 여백 (%)
-  const filledWidth = (currentIndex / n) * 100; // 현재 단계 글자까지
-
-  return (
-    <div className="mt-4">
-      <div className="relative flex items-center">
-        {/* Background bar — 글자 사이만 */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 h-1 bg-[#F5F5F5] rounded-full"
-          style={{ left: `${inset}%`, right: `${inset}%` }}
-        />
-        {/* Filled bar */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 h-1 bg-[#262626] rounded-full transition-all"
-          style={{ left: `${inset}%`, width: `${filledWidth}%` }}
-        />
-        {/* 단계 글자 (노드 자리) */}
-        {STATUS_FLOW.map((s, i) => (
-          <div key={s.key} className="relative z-10 flex-1 flex justify-center">
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] tracking-[-0.3px] ${
-                i <= currentIndex
-                  ? "bg-[#262626] font-semibold text-white"
-                  : "bg-[#F5F5F5] font-medium text-[#7B7B7B]"
-              }`}
-            >
-              {s.label}
-            </span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

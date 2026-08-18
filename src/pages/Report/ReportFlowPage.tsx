@@ -1,947 +1,935 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "@/components/layout/Header";
-import { CATEGORIES } from "@/types";
-import type { DangerLevel, Category } from "@/types";
-import { Check, AlertTriangle, Phone, Camera, ArrowUp } from "lucide-react";
+import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-react";
 
-// ───────────────────────────────────────────────
-// 대화형(AI 채팅) 신고 화면
-// 흐름: 응급 → 사진 → 메모 → 분석 → 위치 → 익명 → 중복 → 정리카드 → 완료
-// ───────────────────────────────────────────────
+// 배경 (sogang/10)
+const BG = "#fbf4f3";
+// 강조 (sogang/500)
+const SOGANG_RED = "#a92614";
+// 서강대 캠퍼스 중심
+const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
 
-type Step =
-  | "emergency"
-  | "emergencyCall"
+// 맞춤 질문 (분석 결과 기반 · 최대 3개)
+const QUESTIONS = [
+  { q: "통행에 얼마나 방해가 되나요?", options: ["지나갈 수 있음", "우회해야 함", "통행 불가"] },
+  { q: "지금도 위험이 계속되고 있나요?", options: ["일시적이에요", "계속돼요", "점점 심해져요"] },
+  { q: "주변에 사람이 얼마나 다니나요?", options: ["거의 없음", "보통", "매우 붐벼요"] },
+];
+
+type Stage =
   | "photo"
-  | "memo"
-  | "analyzing"
-  | "location"
-  | "locationIndoor"
+  | "compose"
+  | "locationInput"
+  | "locationConfirm"
+  | "afterLocation"
+  | "question"
   | "anonymous"
-  | "duplicate"
-  | "summary"
-  | "complete";
+  | "proposal";
 
-type LocationType = "outdoor" | "indoor";
-
-type Message =
-  | { id: number; role: "ai" | "user"; type: "text"; text: string }
-  | { id: number; role: "user"; type: "photo" }
-  | { id: number; role: "ai"; type: "emergency" }
+type Msg =
   | {
       id: number;
       role: "ai";
-      type: "analysis";
-      category: string;
-      dangerLevel: DangerLevel;
-      location: string;
-    };
+      text: string;
+      emphasis?: string | string[];
+      topAnchor?: boolean;
+    }
+  | { id: number; role: "user"; text: string }
+  | { id: number; role: "photo" }
+  | { id: number; role: "locationSaved"; label: string; lat: number; lng: number };
 
-const PHASES = ["분석", "확인", "제안서", "전송"];
+// AI 문장 내 특정 구절 강조 (여러 단어 지원)
+function renderEmphasis(text: string, emp: string | string[]) {
+  const words = Array.isArray(emp) ? emp : [emp];
+  const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const re = new RegExp(`(${escaped.join("|")})`);
+  return text.split(re).map((part, i) =>
+    words.includes(part) ? (
+      <span key={i} className="font-semibold">
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
 
-const DANGER_LEVELS: { key: DangerLevel; label: string }[] = [
-  { key: "low", label: "낮음" },
-  { key: "medium", label: "중간" },
-  { key: "high", label: "높음" },
-];
-const DANGER_LABEL: Record<DangerLevel, string> = {
-  low: "낮음",
-  medium: "중간",
-  high: "높음",
-};
-const DANGER_DOT: Record<DangerLevel, string> = {
-  low: "bg-[#E5C946]",
-  medium: "bg-[#E8943A]",
-  high: "bg-[#D94A4A]",
-};
-const DANGER_BORDER: Record<DangerLevel, string> = {
-  low: "border-[#E5C946]",
-  medium: "border-[#E8943A]",
-  high: "border-[#D94A4A]",
-};
+type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
+type MsgInput = DistributiveOmit<Msg, "id">;
 
-function phaseOf(step: Step): number {
-  switch (step) {
-    case "emergency":
-    case "emergencyCall":
-    case "photo":
-    case "memo":
-    case "analyzing":
-      return 0; // 분석
-    case "location":
-    case "locationIndoor":
-    case "anonymous":
-    case "duplicate":
-      return 1; // 확인
-    case "summary":
-      return 2; // 제안서
-    case "complete":
-      return 3; // 전송
+// ─── 카카오맵 SDK 로더 ───
+function ensureKakao(cb: () => void) {
+  const w = window as any;
+  if (w.kakao?.maps) {
+    w.kakao.maps.load(cb);
+    return;
   }
+  const existing = document.getElementById("kakao-sdk") as HTMLScriptElement | null;
+  if (existing) {
+    existing.addEventListener("load", () => w.kakao.maps.load(cb));
+    return;
+  }
+  const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
+  const s = document.createElement("script");
+  s.id = "kakao-sdk";
+  s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
+  s.async = true;
+  s.onload = () => w.kakao.maps.load(cb);
+  document.head.appendChild(s);
 }
 
 export default function ReportFlowPage() {
   const navigate = useNavigate();
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const albumRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(1);
   const nextId = () => ++idRef.current;
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      role: "ai",
-      type: "text",
-      text: "안전 제보를 도와드릴게요.\n먼저, 다친 사람이나 진행 중인 사고가 있나요?",
-    },
-  ]);
-  const [step, setStep] = useState<Step>("emergency");
-
-  // 수집 데이터
+  const [stage, setStage] = useState<Stage>("photo");
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [memo, setMemo] = useState("");
-  const [category, setCategory] = useState<Category | null>(null);
-  const [dangerLevel, setDangerLevel] = useState<DangerLevel>("high");
-  const [locationType, setLocationType] = useState<LocationType>("outdoor");
-  const [building, setBuilding] = useState("김대건관");
-  const [floor, setFloor] = useState("");
-  const [room, setRoom] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(true);
-  const [proposalText, setProposalText] = useState("");
-  const [trackingId, setTrackingId] = useState("");
-
-  // 입력/수정 상태
   const [input, setInput] = useState("");
-  const [tmpFloor, setTmpFloor] = useState("");
-  const [tmpRoom, setTmpRoom] = useState("");
-  const [editingField, setEditingField] = useState<
-    null | "category" | "danger" | "location" | "anonymous" | "proposal"
+
+  // 위치
+  const [locationQuery, setLocationQuery] = useState(""); // 지도 조회용(고정)
+  const [locationText, setLocationText] = useState(""); // 표시 라벨(편집 가능)
+  const [editingLoc, setEditingLoc] = useState(false);
+  const [coords, setCoords] = useState(SOGANG_CENTER);
+
+  // 맞춤 질문
+  const [currentQ, setCurrentQ] = useState(0);
+  const [directActive, setDirectActive] = useState(false);
+  const [directInput, setDirectInput] = useState("");
+  const [pendingScroll, setPendingScroll] = useState<"top" | "bottom">("bottom");
+  const [answers, setAnswers] = useState<string[]>([]);
+
+  // 제안서 문서
+  const [anonymity, setAnonymity] = useState<"익명" | "실명">("익명");
+  const [hazardContent, setHazardContent] = useState("");
+  const [improvement, setImprovement] = useState("");
+  const [editingSection, setEditingSection] = useState<
+    null | "hazard" | "improvement"
   >(null);
-  const [showCancel, setShowCancel] = useState(false);
+  const [draft, setDraft] = useState("");
 
-  const locationText =
-    locationType === "indoor"
-      ? `${building || "건물"}${floor ? ` ${floor}층` : ""}${room ? ` ${room}` : ""}`.trim()
-      : `${building || "건물"} 정문 앞 보도`;
-
-  // ─── helpers ───
-  const addAi = (text: string) =>
-    setMessages((p) => [...p, { id: nextId(), role: "ai", type: "text", text }]);
-  const addUser = (text: string) =>
-    setMessages((p) => [...p, { id: nextId(), role: "user", type: "text", text }]);
-
-  const generateProposal = (
-    cat: Category | null,
-    danger: DangerLevel,
-    locText: string,
-    memoText: string,
-  ) =>
-    `안녕하십니까. 학내 안전 위험 요소를 제보드립니다.\n\n` +
-    `[발견 위치] ${locText}\n` +
-    `[위험 유형] ${cat?.label ?? ""}\n` +
-    `[위험도] ${DANGER_LABEL[danger]}\n\n` +
-    `[현황]\n${(memoText || "현장에서 위험 요소가 확인되었습니다.").trim()}\n\n` +
-    `[개선 제안]\n해당 구역에 대한 현장 점검 및 보수 조치를 요청드립니다. ` +
-    `보행자 안전사고 예방을 위해 조속한 확인 부탁드립니다.\n\n감사합니다.`;
-
-  // 자동 스크롤
+  // objectURL 정리
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, step, editingField]);
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
 
-  // ─── flow ───
-  const proceedToPhoto = () => {
-    addAi("위험 요소가 잘 보이는 사진을 올려주세요.");
-    setStep("photo");
-  };
-
-  const handleEmergency = (yes: boolean) => {
-    addUser(yes ? "네, 응급이에요" : "아니요");
-    if (yes) {
-      setMessages((p) => [...p, { id: nextId(), role: "ai", type: "emergency" }]);
-      setStep("emergencyCall");
-    } else {
-      proceedToPhoto();
-    }
-  };
-
-  const handlePhoto = () => {
-    setMessages((p) => [...p, { id: nextId(), role: "user", type: "photo" }]);
-    addAi("사진에 덧붙일 한 줄 메모가 있나요? 없으면 건너뛰어도 돼요.");
-    setStep("memo");
-  };
-
-  const startAnalysis = () => {
-    addAi("사진을 분석하고 있어요…");
-    setStep("analyzing");
-    setTimeout(() => {
-      const cat = CATEGORIES[0];
-      setCategory(cat);
-      setDangerLevel("high");
-      setBuilding("김대건관");
-      setMessages((p) => [
-        ...p,
-        {
-          id: nextId(),
-          role: "ai",
-          type: "analysis",
-          category: cat.label,
-          dangerLevel: "high",
-          location: "김대건관",
-        },
-      ]);
-      askLocation();
-    }, 1600);
-  };
-
-  const handleMemo = (text: string | null) => {
-    if (text) {
-      setMemo(text);
-      addUser(text);
-    } else {
-      addUser("건너뛸게요");
-    }
-    setInput("");
-    startAnalysis();
-  };
-
-  const askLocation = () => {
-    addAi("어디에서 발견했나요? 건물 외부인가요, 내부인가요?");
-    setStep("location");
-  };
-
-  const handleLocation = (type: LocationType) => {
-    setLocationType(type);
-    addUser(type === "outdoor" ? "건물 외부" : "건물 내부");
-    if (type === "outdoor") {
-      askAnonymous();
-    } else {
-      addAi("몇 층, 어느 위치인가요?");
-      setTmpFloor(floor);
-      setTmpRoom(room);
-      setStep("locationIndoor");
-    }
-  };
-
-  const handleIndoorConfirm = () => {
-    setFloor(tmpFloor);
-    setRoom(tmpRoom);
-    addUser(`${tmpFloor ? `${tmpFloor}층` : ""} ${tmpRoom}`.trim() || "내부");
-    askAnonymous();
-  };
-
-  const askAnonymous = () => {
-    addAi("익명으로 보낼까요, 실명으로 보낼까요?");
-    setStep("anonymous");
-  };
-
-  const handleAnonymous = (anon: boolean) => {
-    setIsAnonymous(anon);
-    addUser(anon ? "익명" : "실명");
-    addAi("최근 비슷한 제보가 있어요. 기존 제안서에 더해 보낼까요?");
-    setStep("duplicate");
-  };
-
-  const handleDuplicate = (merge: boolean) => {
-    addUser(merge ? "기존에 병합" : "새로 제출");
-    const text = generateProposal(category, dangerLevel, locationText, memo);
-    setProposalText(text);
-    addAi("제안서를 작성했어요. 확인하고 보내주세요.");
-    setStep("summary");
-  };
-
-  const handleSend = () => {
-    setTrackingId(`SW-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-    setStep("complete");
-  };
-
-  // 정리 카드 — 항목 수정 시 제안서 재작성
-  const updateCategory = (cat: Category) => {
-    setCategory(cat);
-    setProposalText(generateProposal(cat, dangerLevel, locationText, memo));
-    setEditingField(null);
-  };
-  const updateDanger = (d: DangerLevel) => {
-    setDangerLevel(d);
-    setProposalText(generateProposal(category, d, locationText, memo));
-    setEditingField(null);
-  };
-  const updateLocation = () => {
-    const locText =
-      locationType === "indoor"
-        ? `${building || "건물"}${floor ? ` ${floor}층` : ""}${room ? ` ${room}` : ""}`.trim()
-        : `${building || "건물"} 정문 앞 보도`;
-    setProposalText(generateProposal(category, dangerLevel, locText, memo));
-    setEditingField(null);
-  };
-
-  // 명령어 / 자유 입력
-  const handleSubmitInput = () => {
-    const text = input.trim();
-    if (!text) return;
-    if (step === "memo") {
-      handleMemo(text);
-      return;
-    }
-    addUser(text);
-    setInput("");
-    if (/위치/.test(text)) {
-      askLocation();
-    } else if (/메모/.test(text)) {
-      addAi("메모를 다시 입력해 주세요. 없으면 건너뛰어도 돼요.");
-      setStep("memo");
-    } else if (/익명|실명/.test(text)) {
-      askAnonymous();
-    } else if (/카테고리|분류|위험도/.test(text)) {
-      if (step === "summary") {
-        addAi("아래 정리 카드의 [수정]에서 바꿀 수 있어요.");
-      } else {
-        addAi("카테고리·위험도는 마지막 정리 카드에서 수정할 수 있어요.");
+  // 스크롤: 새 질문은 상단 정렬, 그 외는 하단
+  useEffect(() => {
+    const cont = scrollRef.current;
+    if (!cont) return;
+    if (pendingScroll === "top") {
+      const nodes = cont.querySelectorAll('[data-anchor="top"]');
+      const last = nodes[nodes.length - 1] as HTMLElement | undefined;
+      if (last) {
+        last.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
       }
+    }
+    cont.scrollTo({ top: cont.scrollHeight, behavior: "smooth" });
+  }, [messages, pendingScroll]);
+
+  const addMsgs = (...msgs: MsgInput[]) =>
+    setMessages((p) => [...p, ...msgs.map((m) => ({ ...m, id: nextId() }) as Msg)]);
+
+  const handleClose = () => navigate("/map");
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUrl(URL.createObjectURL(file));
+    setStage("compose");
+  };
+
+  const handleComposeSend = () => {
+    if (!memo.trim()) return;
+    addMsgs(
+      { role: "photo" },
+      { role: "user", text: memo.trim() },
+      { role: "ai", text: "보내주신 사진과 내용을 분석해 제안서를 생성할게요." },
+    );
+    setStage("locationInput");
+    // 분석 후 위치 질문
+    setTimeout(() => {
+      addMsgs(
+        { role: "ai", text: "신고 위치가 어디인가요?" },
+        {
+          role: "ai",
+          text: "건물은 정확한 명칭으로, 길·야외라면 가까운 건물을 기준으로 설명해 주세요.\n(예: 로욜라 도서관 2관)",
+        },
+      );
+    }, 1000);
+  };
+
+  const handleInputSend = () => {
+    const t = input.trim();
+    if (!t) return;
+    if (stage === "locationInput") {
+      addMsgs({ role: "user", text: t }, { role: "ai", text: "해당 위치가 맞나요?" });
+      setLocationQuery(t);
+      setLocationText(t);
+      setStage("locationConfirm");
     } else {
-      addAi("칩으로 답하시거나 '위치 다시'처럼 말씀해 주세요.");
+      addMsgs({ role: "user", text: t });
+    }
+    setInput("");
+  };
+
+  const startQuestions = () => {
+    setPendingScroll("top");
+    addMsgs(
+      {
+        role: "ai",
+        text: "제안서를 쓰기 위한 질문 세 가지만 더 물어볼게요.",
+        emphasis: "질문 세 가지",
+        topAnchor: true,
+      },
+      { role: "ai", text: QUESTIONS[0].q },
+    );
+    setCurrentQ(0);
+    setDirectActive(false);
+    setDirectInput("");
+    setStage("question");
+  };
+
+  const handleLocationConfirm = () => {
+    addMsgs({
+      role: "locationSaved",
+      label: locationText,
+      lat: coords.lat,
+      lng: coords.lng,
+    });
+    setStage("afterLocation");
+    setTimeout(startQuestions, 900);
+  };
+
+  const handleAnswer = (text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    setPendingScroll("bottom");
+    addMsgs({ role: "user", text: t });
+    setAnswers((p) => [...p, t]);
+    setDirectActive(false);
+    setDirectInput("");
+    const idx = currentQ;
+    if (idx < QUESTIONS.length - 1) {
+      setTimeout(() => {
+        setPendingScroll("top");
+        addMsgs({ role: "ai", text: QUESTIONS[idx + 1].q, topAnchor: true });
+        setCurrentQ(idx + 1);
+      }, 600);
+    } else {
+      setTimeout(() => {
+        setPendingScroll("top");
+        addMsgs(
+          { role: "ai", text: "내용을 확정했어요.", topAnchor: true },
+          {
+            role: "ai",
+            text: "이 제보를 익명으로 보낼까요? 실명으로 보낼까요?",
+            emphasis: ["익명", "실명"],
+          },
+        );
+        setStage("anonymous");
+      }, 600);
     }
   };
 
-  const handleClose = () => {
-    if (step === "complete") navigate("/map");
-    else setShowCancel(true);
+  const handleAnonymous = (choice: "익명" | "실명") => {
+    setPendingScroll("bottom");
+    addMsgs({ role: "user", text: choice });
+    setAnonymity(choice);
+    setHazardContent(
+      `${locationText}. ${memo.trim()} (통행 영향: ${answers[0] ?? "-"} / 위험 지속성: ${answers[1] ?? "-"} / 주변 통행량: ${answers[2] ?? "-"})`,
+    );
+    setImprovement("현장 점검 후 위험 요소 보수와 임시 안전표시 설치를 요청드립니다.");
+    setTimeout(() => setStage("proposal"), 500);
   };
 
-  const phase = phaseOf(step);
+  const startEdit = (section: "hazard" | "improvement") => {
+    setEditingSection(section);
+    setDraft(section === "hazard" ? hazardContent : improvement);
+  };
+
+  const commitEdit = () => {
+    if (!editingSection) return;
+    if (editingSection === "hazard") setHazardContent(draft);
+    else setImprovement(draft);
+    setEditingSection(null);
+  };
+
+  const handleSubmitProposal = () => {
+    navigate("/map");
+  };
+
+  const handlePhotoRemove = () => {
+    // 첫 메시지 재편집
+    setMessages([]);
+    setLocationQuery("");
+    setLocationText("");
+    setStage("compose");
+  };
+
+  // ─── 제안서 문서 화면 (채팅 아님) ───
+  if (stage === "proposal") {
+    return (
+      <div className="h-dvh w-full flex flex-col" style={{ backgroundColor: BG }}>
+        {/* 헤더 */}
+        <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
+          <div className="h-[44px]" />
+          <div className="px-4 pb-2">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={handleClose}
+                className="bg-white/30 rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
+              >
+                <X className="w-6 h-6 text-[#262626]" />
+              </button>
+              <div className="bg-white/30 rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
+                <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
+                  제안서 전송
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 문서 본문 */}
+        <div className="flex-1 overflow-y-auto px-6 py-[30px] flex flex-col gap-5">
+          {/* 제안자 */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">
+              제안자
+            </span>
+            <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
+              {anonymity}
+            </span>
+          </div>
+
+          {/* 위험장소 */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">
+              위험장소
+            </span>
+            <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
+              {locationText}
+            </span>
+          </div>
+
+          {/* 안전·보건 유해/위험/시설/장소 내용 (수정 가능) */}
+          <ProposalEditableField
+            label="안전·보건 유해/위험/시설/장소 내용"
+            value={hazardContent}
+            editing={editingSection === "hazard"}
+            draft={draft}
+            onEdit={() => startEdit("hazard")}
+          />
+
+          {/* 개선 제안 사항 (수정 가능) */}
+          <ProposalEditableField
+            label="개선 제안 사항"
+            value={improvement}
+            editing={editingSection === "improvement"}
+            draft={draft}
+            onEdit={() => startEdit("improvement")}
+          />
+
+          {/* 사진 */}
+          <div className="h-[180px] flex items-center">
+            <div className="h-[180px] w-[269px] max-w-full rounded-[12px] overflow-hidden bg-[#e9e9e9]">
+              {photoUrl && (
+                <img
+                  src={photoUrl}
+                  alt="첨부 사진"
+                  className="w-full h-full object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 하단: 수정 중이면 편집 바, 아니면 전송 버튼 */}
+        {editingSection ? (
+          <div className="p-2.5 shrink-0">
+            <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
+              <AutoTextarea
+                autoFocus
+                className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] max-h-[140px]"
+                value={draft}
+                onChange={setDraft}
+                onEnter={commitEdit}
+              />
+              <div className="p-2.5 shrink-0">
+                <button
+                  onClick={commitEdit}
+                  className="rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
+                  style={{ backgroundColor: SOGANG_RED }}
+                >
+                  <ArrowUp className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-2.5 shrink-0">
+            <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5">
+              <button
+                onClick={handleSubmitProposal}
+                className="w-full h-11 rounded-[10px] text-base font-semibold text-white tracking-[-0.4px] transition active:brightness-90"
+                style={{ backgroundColor: SOGANG_RED }}
+              >
+                시설관리팀에 전송하기
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* HomeIndicator 영역 */}
+        <div className="h-[34px] shrink-0" />
+      </div>
+    );
+  }
+
+  const progress =
+    stage === "photo" || stage === "compose"
+      ? "사진 · 설명 1/4"
+      : stage === "locationInput" ||
+          stage === "locationConfirm" ||
+          stage === "afterLocation"
+        ? "신고 위치 2/4"
+        : stage === "question"
+          ? "맞춤 질문 3/4"
+          : "익명 · 실명";
 
   return (
-    <div className="flex flex-col h-dvh">
-      <Header title="AI 신고" closeMode onBack={handleClose} />
-
-      {/* 진행바 */}
-      <div className="px-4 py-2.5 border-b border-[#F0F0F0] shrink-0">
-        <div className="flex justify-between mb-1.5">
-          {PHASES.map((label, i) => (
-            <span
-              key={label}
-              className={`text-[10px] tracking-[-0.25px] ${
-                i <= phase ? "font-semibold text-[#262626]" : "font-medium text-[#C4C4C4]"
-              }`}
+    <div className="h-dvh w-full flex flex-col" style={{ backgroundColor: BG }}>
+      {/* 헤더 */}
+      <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
+        <div className="h-[44px]" />
+        <div className="px-4 pb-2">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleClose}
+              className="bg-white/30 rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
             >
-              {label}
-            </span>
-          ))}
-        </div>
-        <div className="h-1 bg-[#F5F5F5] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#262626] rounded-full transition-all duration-300"
-            style={{ width: `${((phase + 1) / PHASES.length) * 100}%` }}
-          />
+              <X className="w-6 h-6 text-[#262626]" />
+            </button>
+            <div className="bg-white/30 rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
+              <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
+                {progress}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 대화 영역 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {messages.map((m) => (
-          <MessageBubble key={m.id} msg={m} />
-        ))}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-4 py-[30px] flex flex-col gap-5"
+      >
+        {/* AI 인사 */}
+        <p className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4]">
+          안녕하세요! 위험한 곳을 발견했나요?
+          <br />
+          <span className="font-bold">사진 한 장과 어떤 상황</span>
+          인지 함께 알려주세요.
+        </p>
 
-        {step === "summary" && (
-          <SummaryCard
-            category={category}
-            dangerLevel={dangerLevel}
-            locationText={locationText}
-            proposalText={proposalText}
-            isAnonymous={isAnonymous}
-            editingField={editingField}
-            setEditingField={setEditingField}
-            locationType={locationType}
-            building={building}
-            floor={floor}
-            room={room}
-            setBuilding={setBuilding}
-            setFloor={setFloor}
-            setRoom={setRoom}
-            setLocationType={setLocationType}
-            onUpdateCategory={updateCategory}
-            onUpdateDanger={updateDanger}
-            onUpdateLocation={updateLocation}
-            onUpdateAnonymous={(a) => {
-              setIsAnonymous(a);
-              setEditingField(null);
-            }}
-            onUpdateProposal={(t) => setProposalText(t)}
-            onSend={handleSend}
-          />
-        )}
-
-        {step === "complete" && (
-          <CompleteCard trackingId={trackingId} onMap={() => navigate("/map")} onMine={() => navigate("/my-reports")} />
-        )}
+        {messages.map((m) => {
+          if (m.role === "ai") {
+            return (
+              <p
+                key={m.id}
+                data-anchor={m.topAnchor ? "top" : undefined}
+                className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] whitespace-pre-line"
+              >
+                {m.emphasis ? renderEmphasis(m.text, m.emphasis) : m.text}
+              </p>
+            );
+          }
+          if (m.role === "user") {
+            return (
+              <div key={m.id} className="flex justify-end">
+                <div
+                  className="max-w-[300px] rounded-[20px] px-4 py-3"
+                  style={{ backgroundColor: SOGANG_RED }}
+                >
+                  <p className="text-sm text-[#fcfcfc] tracking-[-0.28px] leading-[1.4]">
+                    {m.text}
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          if (m.role === "locationSaved") {
+            return (
+              <div key={m.id} className="flex flex-col gap-2.5 items-start">
+                <p className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4]">
+                  위치를 저장했어요.
+                  <br />
+                  <span className="font-semibold">{m.label}</span>
+                </p>
+                <StaticMap lat={m.lat} lng={m.lng} />
+              </div>
+            );
+          }
+          // photo
+          return (
+            <div key={m.id} className="flex justify-end">
+              <div className="relative size-[180px] rounded-[12px] overflow-hidden bg-[#e9e9e9]">
+                {photoUrl && (
+                  <img
+                    src={photoUrl}
+                    alt="첨부 사진"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                )}
+                <button
+                  onClick={handlePhotoRemove}
+                  className="absolute top-1.5 right-1.5 bg-[#262626]/60 rounded-full p-1.5 flex items-center justify-center transition active:scale-90"
+                >
+                  <X className="w-3.5 h-3.5 text-white" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* 하단 독 */}
-      {step !== "summary" && step !== "complete" && (
-        <div className="shrink-0 border-t border-[#E9E9E9] bg-white px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+10px)]">
-          {/* 빠른 답변 */}
-          <QuickReplies
-            step={step}
-            onEmergency={handleEmergency}
-            onEmergencyContinue={() => {
-              addUser("안전해졌어요, 계속할게요");
-              proceedToPhoto();
-            }}
-            onPhoto={() => cameraInputRef.current?.click()}
-            onMemoSkip={() => handleMemo(null)}
-            onLocation={handleLocation}
-            onIndoorConfirm={handleIndoorConfirm}
-            tmpFloor={tmpFloor}
-            tmpRoom={tmpRoom}
-            setTmpFloor={setTmpFloor}
-            setTmpRoom={setTmpRoom}
-            onAnonymous={handleAnonymous}
-            onDuplicate={handleDuplicate}
-          />
-
-          {/* 텍스트 입력 */}
-          {step !== "locationIndoor" && (
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                className="flex-1 h-11 px-4 bg-[#F5F5F5] rounded-full text-sm outline-none placeholder:text-[#C4C4C4] tracking-[-0.3px] disabled:opacity-50"
-                placeholder={
-                  step === "memo"
-                    ? "메모를 입력하세요"
-                    : step === "analyzing"
-                      ? "분석 중이에요…"
-                      : "메시지 입력 (예: 위치 다시)"
-                }
-                value={input}
-                disabled={step === "analyzing" || step === "photo"}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSubmitInput();
-                }}
-              />
+      {/* ─── 하단 독 ─── */}
+      {stage === "photo" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
+            <div className="flex items-center gap-2.5 px-5">
               <button
-                className="w-11 h-11 shrink-0 bg-[#262626] rounded-full flex items-center justify-center disabled:opacity-40"
-                disabled={!input.trim()}
-                onClick={handleSubmitInput}
+                onClick={() => cameraRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2.5 border border-[#d9d9d9] rounded-[10px] px-5 py-4 transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
               >
-                <ArrowUp className="w-5 h-5 text-white" />
+                <Camera className="w-6 h-6 text-[#262626]" />
+                <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+                  촬영하기
+                </span>
+              </button>
+              <button
+                onClick={() => albumRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2.5 border border-[#d9d9d9] rounded-[10px] px-5 py-4 transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
+              >
+                <ImageIcon className="w-6 h-6 text-[#262626]" />
+                <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+                  앨범에서 선택
+                </span>
               </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* 사진 입력 (숨김) */}
+      {stage === "compose" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
+            <div className="flex justify-center py-2.5">
+              <div className="overflow-hidden rounded-[12px] bg-[#e9e9e9] h-[213px] aspect-[3/4]">
+                {photoUrl && (
+                  <img
+                    src={photoUrl}
+                    alt="첨부 사진"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+            </div>
+            <div className="flex items-end">
+              <AutoTextarea
+                autoFocus
+                className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] placeholder:text-[#C4C4C4] max-h-[140px]"
+                placeholder="어떤 상황인지 알려주세요"
+                value={memo}
+                onChange={setMemo}
+                onEnter={handleComposeSend}
+              />
+              <div className="p-2.5 shrink-0">
+                <button
+                  onClick={handleComposeSend}
+                  className="rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
+                  style={{ backgroundColor: SOGANG_RED }}
+                >
+                  <ArrowUp className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(stage === "locationInput" || stage === "afterLocation") && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
+            <AutoTextarea
+              className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] placeholder:text-[#7b7b7b] max-h-[140px]"
+              placeholder="내용을 입력해주세요."
+              value={input}
+              onChange={setInput}
+              onEnter={handleInputSend}
+            />
+            <div className="p-2.5 shrink-0">
+              <button
+                onClick={handleInputSend}
+                className="bg-[#262626] rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
+              >
+                <ArrowUp className="w-6 h-6 text-white" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stage === "locationConfirm" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-4 px-5 flex flex-col gap-2.5 items-center">
+            <p className="text-xs text-[#555555] tracking-[-0.24px] leading-[1.4] text-center">
+              아래 지도에서 위치를 직접 이동할 수 있어요.
+            </p>
+            <MapPreview query={locationQuery} onCoordsChange={setCoords} />
+            <div className="flex items-center gap-2 justify-center w-full">
+              {editingLoc ? (
+                <input
+                  autoFocus
+                  className="text-sm font-medium text-[#262626] tracking-[-0.28px] text-center outline-none bg-transparent border-b-2 pb-0.5"
+                  style={{ borderColor: SOGANG_RED, minWidth: 140 }}
+                  value={locationText}
+                  onChange={(e) => setLocationText(e.target.value)}
+                  onBlur={() => setEditingLoc(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setEditingLoc(false);
+                  }}
+                />
+              ) : (
+                <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] text-center">
+                  {locationText}
+                </span>
+              )}
+              <button
+                onClick={() => setEditingLoc(true)}
+                className="p-1 transition active:scale-90"
+              >
+                <Pencil className="w-4 h-4 text-[#262626]" />
+              </button>
+            </div>
+            <button
+              onClick={handleLocationConfirm}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition active:brightness-90"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              이 위치로 저장
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === "question" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-2 flex flex-col">
+            {/* 질문 */}
+            <div className="px-5 pb-2">
+              <p className="text-base font-medium text-[#262626] tracking-[-0.32px] leading-[1.4]">
+                {QUESTIONS[currentQ].q}
+              </p>
+            </div>
+            {/* 선택지 */}
+            {QUESTIONS[currentQ].options.map((opt, i) => (
+              <button
+                key={i}
+                onClick={() => handleAnswer(opt)}
+                className="w-full flex items-center gap-4 px-5 py-3 border-b border-[#e9e9e9] transition active:bg-black/5"
+              >
+                <span className="size-[34px] shrink-0 flex items-center justify-center bg-[#eeeeee] rounded-full text-base font-medium text-black">
+                  {i + 1}
+                </span>
+                <span className="flex-1 text-left text-sm text-[#262626] tracking-[-0.28px] leading-[1.4]">
+                  {opt}
+                </span>
+              </button>
+            ))}
+            {/* 직접 입력 */}
+            <div className="w-full flex items-center gap-4 px-5 py-3">
+              <span className="size-[34px] shrink-0 flex items-center justify-center bg-[#eeeeee] rounded-full">
+                <Pencil className="w-4 h-4 text-[#262626]" />
+              </span>
+              {directActive ? (
+                <>
+                  <input
+                    autoFocus
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm text-[#262626] tracking-[-0.28px] placeholder:text-[#c4c4c4]"
+                    placeholder="답변을 입력하세요..."
+                    value={directInput}
+                    onChange={(e) => setDirectInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAnswer(directInput);
+                    }}
+                  />
+                  <button
+                    onClick={() => handleAnswer(directInput)}
+                    className="rounded-full p-2 shrink-0 flex items-center justify-center transition active:scale-95 active:brightness-90"
+                    style={{ backgroundColor: SOGANG_RED }}
+                  >
+                    <ArrowUp className="w-6 h-6 text-white" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setDirectActive(true)}
+                  className="flex-1 text-left text-sm text-[#c4c4c4] tracking-[-0.28px] leading-[1.4]"
+                >
+                  답변을 입력하세요...
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stage === "anonymous" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
+            <div className="flex items-stretch justify-between gap-2.5 px-5">
+              {(
+                [
+                  { key: "익명", desc: "부서에서 확인 불가" },
+                  { key: "실명", desc: "학과 · 학번 함께 전달" },
+                ] as { key: "익명" | "실명"; desc: string }[]
+              ).map(({ key, desc }) => (
+                <button
+                  key={key}
+                  onClick={() => handleAnonymous(key)}
+                  className="flex-1 flex flex-col items-center justify-center gap-1 border border-[#d9d9d9] rounded-[10px] p-3 transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
+                >
+                  <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+                    {key}
+                  </span>
+                  <span className="text-xs text-[#7b7b7b] tracking-[-0.24px]">
+                    {desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HomeIndicator 영역 (컴포넌트 미표시, 영역만 유지) */}
+      <div className="h-[34px] shrink-0" />
+
+      {/* 숨김 파일 입력 */}
       <input
-        ref={cameraInputRef}
+        ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handlePhoto}
+        onChange={handleFile}
       />
+      <input
+        ref={albumRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFile}
+      />
+    </div>
+  );
+}
 
-      {showCancel && (
-        <CancelSheet
-          onContinue={() => setShowCancel(false)}
-          onExit={() => navigate("/map")}
-        />
+// ─── 자동 확장 입력창 (내용 많아지면 여러 줄) ───
+function AutoTextarea({
+  value,
+  onChange,
+  onEnter,
+  placeholder,
+  className,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onEnter?: () => void;
+  placeholder?: string;
+  className?: string;
+  autoFocus?: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      autoFocus={autoFocus}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.nativeEvent.isComposing && !e.shiftKey) {
+          e.preventDefault();
+          onEnter?.();
+        }
+      }}
+      className={className}
+    />
+  );
+}
+
+// ─── 제안서 본문 (수정 가능 필드) ───
+function ProposalEditableField({
+  label,
+  value,
+  editing,
+  draft,
+  onEdit,
+}: {
+  label: string;
+  value: string;
+  editing: boolean;
+  draft: string;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">
+          {label}
+        </span>
+        {editing ? (
+          <span
+            className="text-sm font-medium tracking-[-0.28px]"
+            style={{ color: SOGANG_RED }}
+          >
+            수정중
+          </span>
+        ) : (
+          <button
+            onClick={onEdit}
+            className="text-sm font-medium text-[#7b7b7b] tracking-[-0.28px] underline transition active:opacity-60"
+          >
+            수정
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div
+          className="rounded-[10px] border p-2"
+          style={{ borderColor: SOGANG_RED }}
+        >
+          <p className="text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] whitespace-pre-wrap">
+            {draft}
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4] whitespace-pre-wrap">
+          {value}
+        </p>
       )}
     </div>
   );
 }
 
-// ─── 말풍선 ───
-function MessageBubble({ msg }: { msg: Message }) {
-  if (msg.type === "photo") {
-    return (
-      <div className="flex justify-end">
-        <div className="w-[140px] h-[140px] bg-[#E9E9E9] rounded-[14px] rounded-tr-[4px]" />
-      </div>
-    );
-  }
-
-  if (msg.type === "emergency") {
-    return (
-      <div className="flex justify-start">
-        <div className="max-w-[85%] bg-[#F5F5F5] rounded-[14px] rounded-tl-[4px] p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-[#D94A4A]" />
-            <span className="text-sm font-bold text-[#262626] tracking-[-0.35px]">
-              먼저 도움을 요청하세요
-            </span>
-          </div>
-          <p className="text-xs font-medium text-[#7A7A7A] tracking-[-0.3px] leading-[1.5] mb-3">
-            부상자나 진행 중인 사고가 있다면 아래로 즉시 연락하세요.
-          </p>
-          <div className="flex flex-col gap-2">
-            <a
-              href="tel:119"
-              className="w-full h-11 bg-[#D94A4A] rounded-[4px] text-sm font-semibold text-white tracking-[-0.35px] flex items-center justify-center gap-2"
-            >
-              <Phone className="w-4 h-4" /> 119 (화재·구급)
-            </a>
-            <a
-              href="tel:112"
-              className="w-full h-11 bg-[#262626] rounded-[4px] text-sm font-semibold text-white tracking-[-0.35px] flex items-center justify-center gap-2"
-            >
-              <Phone className="w-4 h-4" /> 112 (범죄·사고)
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (msg.type === "analysis") {
-    return (
-      <div className="flex justify-start">
-        <div className="max-w-[85%] bg-[#F5F5F5] rounded-[14px] rounded-tl-[4px] p-4">
-          <p className="text-xs font-semibold text-[#7B7B7B] tracking-[-0.3px] mb-2">
-            사진을 이렇게 파악했어요
-          </p>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-medium text-[#262626] bg-white border border-[#E9E9E9] rounded-full px-2.5 py-1 tracking-[-0.3px]">
-              {msg.location}
-            </span>
-            <span className="text-xs font-medium text-[#262626] bg-white border border-[#E9E9E9] rounded-full px-2.5 py-1 tracking-[-0.3px]">
-              {msg.category}
-            </span>
-            <span
-              className={`text-xs font-semibold text-[#262626] bg-white border ${DANGER_BORDER[msg.dangerLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5`}
-            >
-              <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[msg.dangerLevel]}`} />
-              {DANGER_LABEL[msg.dangerLevel]}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // text
-  const isAi = msg.role === "ai";
-  return (
-    <div className={`flex ${isAi ? "justify-start" : "justify-end"}`}>
-      <div
-        className={`max-w-[85%] px-3.5 py-2.5 text-sm leading-[1.5] tracking-[-0.3px] whitespace-pre-line ${
-          isAi
-            ? "bg-[#F5F5F5] text-[#262626] rounded-[14px] rounded-tl-[4px]"
-            : "bg-[#262626] text-white rounded-[14px] rounded-tr-[4px]"
-        }`}
-      >
-        {msg.text}
-      </div>
-    </div>
-  );
-}
-
-// ─── 빠른 답변 (하단 독) ───
-function QuickReplies(props: {
-  step: Step;
-  onEmergency: (yes: boolean) => void;
-  onEmergencyContinue: () => void;
-  onPhoto: () => void;
-  onMemoSkip: () => void;
-  onLocation: (t: LocationType) => void;
-  onIndoorConfirm: () => void;
-  tmpFloor: string;
-  tmpRoom: string;
-  setTmpFloor: (v: string) => void;
-  setTmpRoom: (v: string) => void;
-  onAnonymous: (anon: boolean) => void;
-  onDuplicate: (merge: boolean) => void;
-}) {
-  const chip =
-    "shrink-0 px-3.5 h-9 rounded-full border border-[#262626] text-sm font-semibold text-[#262626] tracking-[-0.3px] flex items-center";
-
-  switch (props.step) {
-    case "emergency":
-      return (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-          <button className={chip} onClick={() => props.onEmergency(true)}>
-            네, 응급이에요
-          </button>
-          <button className={chip} onClick={() => props.onEmergency(false)}>
-            아니요
-          </button>
-        </div>
-      );
-    case "emergencyCall":
-      return (
-        <button
-          className="w-full h-9 rounded-full border border-[#262626] text-sm font-semibold text-[#262626] tracking-[-0.3px]"
-          onClick={props.onEmergencyContinue}
-        >
-          안전해졌어요 · 계속할게요
-        </button>
-      );
-    case "photo":
-      return (
-        <button
-          className="w-full h-10 bg-[#262626] rounded-full text-sm font-semibold text-white tracking-[-0.3px] flex items-center justify-center gap-2"
-          onClick={props.onPhoto}
-        >
-          <Camera className="w-4 h-4" /> 사진 올리기
-        </button>
-      );
-    case "memo":
-      return (
-        <div className="flex gap-2">
-          <button className={chip} onClick={props.onMemoSkip}>
-            건너뛰기
-          </button>
-        </div>
-      );
-    case "location":
-      return (
-        <div className="flex gap-2">
-          <button className={chip} onClick={() => props.onLocation("outdoor")}>
-            건물 외부
-          </button>
-          <button className={chip} onClick={() => props.onLocation("indoor")}>
-            건물 내부
-          </button>
-        </div>
-      );
-    case "locationIndoor":
-      return (
-        <div className="flex gap-2">
-          <input
-            className="w-[80px] h-11 px-3 bg-[#F5F5F5] rounded-[4px] text-sm outline-none placeholder:text-[#C4C4C4] tracking-[-0.3px]"
-            placeholder="층 (예:2)"
-            value={props.tmpFloor}
-            onChange={(e) => props.setTmpFloor(e.target.value)}
-          />
-          <input
-            className="flex-1 h-11 px-3 bg-[#F5F5F5] rounded-[4px] text-sm outline-none placeholder:text-[#C4C4C4] tracking-[-0.3px]"
-            placeholder="위치 (예: 201호 복도)"
-            value={props.tmpRoom}
-            onChange={(e) => props.setTmpRoom(e.target.value)}
-          />
-          <button
-            className="shrink-0 px-4 h-11 bg-[#262626] rounded-[4px] text-sm font-semibold text-white tracking-[-0.3px]"
-            onClick={props.onIndoorConfirm}
-          >
-            확인
-          </button>
-        </div>
-      );
-    case "anonymous":
-      return (
-        <div className="flex gap-2">
-          <button className={chip} onClick={() => props.onAnonymous(true)}>
-            익명
-          </button>
-          <button className={chip} onClick={() => props.onAnonymous(false)}>
-            실명
-          </button>
-        </div>
-      );
-    case "duplicate":
-      return (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-          <button className={chip} onClick={() => props.onDuplicate(true)}>
-            기존에 병합
-          </button>
-          <button className={chip} onClick={() => props.onDuplicate(false)}>
-            새로 제출
-          </button>
-        </div>
-      );
-    default:
-      return null;
-  }
-}
-
-// ─── 정리 카드 ───
-function SummaryCard(props: {
-  category: Category | null;
-  dangerLevel: DangerLevel;
-  locationText: string;
-  proposalText: string;
-  isAnonymous: boolean;
-  editingField: null | "category" | "danger" | "location" | "anonymous" | "proposal";
-  setEditingField: (f: SummaryCardField) => void;
-  locationType: LocationType;
-  building: string;
-  floor: string;
-  room: string;
-  setBuilding: (v: string) => void;
-  setFloor: (v: string) => void;
-  setRoom: (v: string) => void;
-  setLocationType: (t: LocationType) => void;
-  onUpdateCategory: (c: Category) => void;
-  onUpdateDanger: (d: DangerLevel) => void;
-  onUpdateLocation: () => void;
-  onUpdateAnonymous: (a: boolean) => void;
-  onUpdateProposal: (t: string) => void;
-  onSend: () => void;
-}) {
-  const f = props.editingField;
-  const editBtn = (field: Exclude<SummaryCardField, null>) => (
-    <button
-      className="text-xs font-semibold text-[#7B7B7B] tracking-[-0.3px] underline shrink-0"
-      onClick={() => props.setEditingField(f === field ? null : field)}
-    >
-      {f === field ? "닫기" : "수정"}
-    </button>
-  );
-  const rowChip = (active: boolean) =>
-    `px-3 h-9 rounded-full border text-sm font-semibold tracking-[-0.3px] ${
-      active ? "border-[#262626] text-[#262626]" : "border-[#E9E9E9] text-[#7B7B7B]"
-    }`;
-
-  return (
-    <div className="flex justify-start">
-      <div className="w-full bg-white border border-[#E9E9E9] rounded-[14px] rounded-tl-[4px] shadow-[0px_2px_10px_0px_rgba(0,0,0,0.05)] p-4">
-        {/* 위치 */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-[#7B7B7B] tracking-[-0.35px]">위치</span>
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-semibold text-[#262626] tracking-[-0.35px] truncate">
-              {props.locationText}
-            </span>
-            {editBtn("location")}
-          </div>
-        </div>
-        {f === "location" && (
-          <div className="mt-2.5 flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button
-                className={rowChip(props.locationType === "outdoor")}
-                onClick={() => props.setLocationType("outdoor")}
-              >
-                외부
-              </button>
-              <button
-                className={rowChip(props.locationType === "indoor")}
-                onClick={() => props.setLocationType("indoor")}
-              >
-                내부
-              </button>
-            </div>
-            <input
-              className="w-full h-10 px-3 bg-[#F5F5F5] rounded-[4px] text-sm outline-none tracking-[-0.3px]"
-              placeholder="건물"
-              value={props.building}
-              onChange={(e) => props.setBuilding(e.target.value)}
-            />
-            {props.locationType === "indoor" && (
-              <div className="flex gap-2">
-                <input
-                  className="w-[80px] h-10 px-3 bg-[#F5F5F5] rounded-[4px] text-sm outline-none tracking-[-0.3px]"
-                  placeholder="층"
-                  value={props.floor}
-                  onChange={(e) => props.setFloor(e.target.value)}
-                />
-                <input
-                  className="flex-1 h-10 px-3 bg-[#F5F5F5] rounded-[4px] text-sm outline-none tracking-[-0.3px]"
-                  placeholder="위치"
-                  value={props.room}
-                  onChange={(e) => props.setRoom(e.target.value)}
-                />
-              </div>
-            )}
-            <button
-              className="self-end px-4 h-9 bg-[#262626] rounded-full text-sm font-semibold text-white tracking-[-0.3px]"
-              onClick={props.onUpdateLocation}
-            >
-              적용
-            </button>
-          </div>
-        )}
-
-        <div className="h-px bg-[#F0F0F0] my-3" />
-
-        {/* 카테고리 */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-[#7B7B7B] tracking-[-0.35px]">카테고리</span>
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-semibold text-[#262626] tracking-[-0.35px] truncate">
-              {props.category?.label}
-            </span>
-            {editBtn("category")}
-          </div>
-        </div>
-        {f === "category" && (
-          <div className="mt-2.5 grid grid-cols-2 gap-2">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                className={`h-9 px-3 rounded-full border text-xs text-left tracking-[-0.3px] flex items-center ${
-                  props.category?.id === cat.id
-                    ? "border-[#262626] font-semibold text-black"
-                    : "border-[#E9E9E9] font-medium text-[#7B7B7B]"
-                }`}
-                onClick={() => props.onUpdateCategory(cat)}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="h-px bg-[#F0F0F0] my-3" />
-
-        {/* 위험도 */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-[#7B7B7B] tracking-[-0.35px]">위험도</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[#262626] tracking-[-0.35px] flex items-center gap-1.5">
-              <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[props.dangerLevel]}`} />
-              {DANGER_LABEL[props.dangerLevel]}
-            </span>
-            {editBtn("danger")}
-          </div>
-        </div>
-        {f === "danger" && (
-          <div className="mt-2.5 flex gap-2">
-            {DANGER_LEVELS.map(({ key, label }) => (
-              <button
-                key={key}
-                className={`flex-1 h-10 rounded-[4px] border flex items-center justify-center gap-1.5 text-xs font-semibold tracking-[-0.3px] ${
-                  props.dangerLevel === key
-                    ? "border-[#262626] text-[#262626]"
-                    : "border-[#E9E9E9] text-[#7B7B7B]"
-                }`}
-                onClick={() => props.onUpdateDanger(key)}
-              >
-                <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[key]}`} />
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="h-px bg-[#F0F0F0] my-3" />
-
-        {/* 제보 방식 */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-[#7B7B7B] tracking-[-0.35px]">제보 방식</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[#262626] tracking-[-0.35px]">
-              {props.isAnonymous ? "익명" : "실명"}
-            </span>
-            {editBtn("anonymous")}
-          </div>
-        </div>
-        {f === "anonymous" && (
-          <div className="mt-2.5 flex gap-2">
-            <button className={rowChip(props.isAnonymous)} onClick={() => props.onUpdateAnonymous(true)}>
-              익명
-            </button>
-            <button className={rowChip(!props.isAnonymous)} onClick={() => props.onUpdateAnonymous(false)}>
-              실명
-            </button>
-          </div>
-        )}
-
-        <div className="h-px bg-[#F0F0F0] my-3" />
-
-        {/* 제안서 */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-[#7B7B7B] tracking-[-0.35px]">제안서</span>
-          {editBtn("proposal")}
-        </div>
-        {f === "proposal" ? (
-          <textarea
-            className="mt-2 w-full h-[200px] p-3 border border-[#E9E9E9] rounded-[4px] text-xs leading-[1.6] resize-none outline-none tracking-[-0.3px]"
-            value={props.proposalText}
-            onChange={(e) => props.onUpdateProposal(e.target.value)}
-          />
-        ) : (
-          <p className="mt-2 text-xs font-medium text-[#7A7A7A] tracking-[-0.3px] leading-[1.6] whitespace-pre-line line-clamp-4">
-            {props.proposalText}
-          </p>
-        )}
-
-        <button
-          className="mt-4 w-full h-11 bg-[#262626] rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px]"
-          onClick={props.onSend}
-        >
-          보내기
-        </button>
-      </div>
-    </div>
-  );
-}
-
-type SummaryCardField = null | "category" | "danger" | "location" | "anonymous" | "proposal";
-
-// ─── 완료 카드 ───
-function CompleteCard({
-  trackingId,
-  onMap,
-  onMine,
+// ─── 지도 프리뷰 (고정 중앙 핀 + 드래그로 좌표 변경) ───
+function MapPreview({
+  query,
+  onCoordsChange,
 }: {
-  trackingId: string;
-  onMap: () => void;
-  onMine: () => void;
+  query: string;
+  onCoordsChange: (c: { lat: number; lng: number }) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureKakao(() => {
+      if (cancelled || !ref.current) return;
+      const w = window as any;
+      const map = new w.kakao.maps.Map(ref.current, {
+        center: new w.kakao.maps.LatLng(SOGANG_CENTER.lat, SOGANG_CENTER.lng),
+        level: 3,
+      });
+      setTimeout(() => map.relayout(), 0);
+      onCoordsChange(SOGANG_CENTER);
+
+      // 답변 위치로 지도 중심 이동
+      if (query && w.kakao.maps.services) {
+        const ps = new w.kakao.maps.services.Places();
+        ps.keywordSearch(query, (data: any[], status: string) => {
+          if (cancelled) return;
+          if (status === w.kakao.maps.services.Status.OK && data[0]) {
+            const c = new w.kakao.maps.LatLng(data[0].y, data[0].x);
+            map.setCenter(c);
+            onCoordsChange({ lat: +data[0].y, lng: +data[0].x });
+          }
+        });
+      }
+
+      // 드래그 종료 시 중심 좌표 = 신고 좌표
+      w.kakao.maps.event.addListener(map, "dragend", () => {
+        const c = map.getCenter();
+        onCoordsChange({ lat: c.getLat(), lng: c.getLng() });
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
   return (
-    <div className="flex justify-start">
-      <div className="w-full bg-white border border-[#E9E9E9] rounded-[14px] rounded-tl-[4px] shadow-[0px_2px_10px_0px_rgba(0,0,0,0.05)] p-5 flex flex-col items-center">
-        <div className="w-[64px] h-[64px] bg-[#262626] rounded-full flex items-center justify-center">
-          <Check className="w-8 h-8 text-white" />
-        </div>
-        <h3 className="mt-4 text-lg font-bold text-[#1d1d1f] tracking-[-0.45px]">제안서 발송 완료</h3>
-        <p className="mt-1.5 text-xs font-medium text-[#7A7A7A] tracking-[-0.3px] text-center leading-[1.5]">
-          안전관리센터로 제안서가 발송되고
-          <br />
-          핀이 지도에 표시됩니다.
-        </p>
-        <div className="w-full mt-4 bg-[#F5F5F5] rounded-[4px] p-3 flex items-center justify-between">
-          <span className="text-xs font-semibold text-[#7B7B7B] tracking-[-0.3px]">추적 ID</span>
-          <span className="text-sm font-bold text-[#262626] tracking-[-0.35px]">{trackingId}</span>
-        </div>
-        <div className="w-full mt-3 flex gap-2">
-          <button
-            className="flex-1 h-11 border border-[#262626] rounded-[4px] text-sm font-semibold text-[#262626] tracking-[-0.35px]"
-            onClick={onMine}
-          >
-            내 신고
-          </button>
-          <button
-            className="flex-1 h-11 bg-[#262626] rounded-[4px] text-sm font-semibold text-[#F5F5F5] tracking-[-0.35px]"
-            onClick={onMap}
-          >
-            지도에서 확인
-          </button>
-        </div>
+    <div className="relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
+      <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
+      {/* 고정 중앙 핀 (지도를 움직여 좌표 변경) */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
+        <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
       </div>
     </div>
   );
 }
 
-// ─── 취소 시트 ───
-function CancelSheet({ onContinue, onExit }: { onContinue: () => void; onExit: () => void }) {
+// ─── 정적 지도 (저장된 위치 · 채팅 로그용) ───
+function StaticMap({ lat, lng }: { lat: number; lng: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureKakao(() => {
+      if (cancelled || !ref.current) return;
+      const w = window as any;
+      const center = new w.kakao.maps.LatLng(lat, lng);
+      const map = new w.kakao.maps.Map(ref.current, {
+        center,
+        level: 3,
+        draggable: false,
+      });
+      map.setZoomable(false);
+      setTimeout(() => {
+        map.relayout();
+        map.setCenter(center);
+      }, 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onContinue} />
-      <div className="relative w-full max-w-[430px] mx-auto bg-white rounded-t-[10px] animate-slide-up">
-        <div className="flex justify-center pt-[5px] pb-[5px]">
-          <div className="w-14 h-[5px] bg-[#D9D9D9] rounded-full" />
-        </div>
-        <div className="px-4 pt-4 pb-6">
-          <h3 className="text-lg font-bold text-[#262626] tracking-[-0.45px]">신고를 그만둘까요?</h3>
-          <p className="mt-2 text-sm font-medium text-[#7B7B7B] tracking-[-0.35px] leading-[1.48]">
-            지금까지 입력한 내용은 저장되지 않습니다.
-          </p>
-          <div className="mt-6 flex flex-col gap-2">
-            <button
-              className="w-full h-11 bg-[#262626] rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px]"
-              onClick={onContinue}
-            >
-              계속 작성하기
-            </button>
-            <button
-              className="w-full h-11 border border-[#262626] rounded-[4px] text-base font-semibold text-[#262626] tracking-[-0.4px]"
-              onClick={onExit}
-            >
-              그만두기
-            </button>
-          </div>
-        </div>
+    <div className="relative w-[300px] max-w-full h-[191px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
+      <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
+        <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
       </div>
     </div>
   );
