@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-react";
 
-// 배경 (sogang/10)
-const BG = "#fbf4f3";
+// 페이지 배경 (gray/10)
+const BG = "#fcfcfc";
 // 강조 (sogang/500)
 const SOGANG_RED = "#a92614";
 // 서강대 캠퍼스 중심
@@ -83,6 +83,10 @@ export default function ReportFlowPage() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [dockHeight, setDockHeight] = useState(120);
+  const [headerHeight, setHeaderHeight] = useState(100);
   const idRef = useRef(1);
   const nextId = () => ++idRef.current;
 
@@ -120,6 +124,21 @@ export default function ReportFlowPage() {
       if (photoUrl) URL.revokeObjectURL(photoUrl);
     };
   }, [photoUrl]);
+
+  // 헤더/하단 dock 높이 측정 (오버레이 → 채팅 스크롤 여백 확보)
+  useEffect(() => {
+    const els: [HTMLElement | null, (h: number) => void][] = [
+      [dockRef.current, setDockHeight],
+      [headerRef.current, setHeaderHeight],
+    ];
+    const ros = els.map(([el, set]) => {
+      if (!el) return null;
+      const ro = new ResizeObserver(([e]) => set(e.contentRect.height));
+      ro.observe(el);
+      return ro;
+    });
+    return () => ros.forEach((ro) => ro?.disconnect());
+  }, [stage]);
 
   // 스크롤: 새 질문은 상단 정렬, 그 외는 하단
   useEffect(() => {
@@ -287,11 +306,11 @@ export default function ReportFlowPage() {
             <div className="flex items-center justify-between">
               <button
                 onClick={handleClose}
-                className="bg-white/30 rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
+                className="bg-white/30 backdrop-blur-[20px] rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
               >
                 <X className="w-6 h-6 text-[#262626]" />
               </button>
-              <div className="bg-white/30 rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
+              <div className="bg-white/30 backdrop-blur-[20px] rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
                 <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
                   제안서 전송
                 </span>
@@ -301,7 +320,7 @@ export default function ReportFlowPage() {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto px-6 py-[30px] flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
           {/* 제안자 */}
           <div className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">
@@ -357,7 +376,7 @@ export default function ReportFlowPage() {
         {/* 하단: 수정 중이면 편집 바, 아니면 전송 버튼 */}
         {editingSection ? (
           <div className="p-2.5 shrink-0">
-            <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
+            <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
               <AutoTextarea
                 autoFocus
                 className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] max-h-[140px]"
@@ -378,7 +397,7 @@ export default function ReportFlowPage() {
           </div>
         ) : (
           <div className="p-2.5 shrink-0">
-            <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5">
+            <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5">
               <button
                 onClick={handleSubmitProposal}
                 className="w-full h-11 rounded-[10px] text-base font-semibold text-white tracking-[-0.4px] transition active:brightness-90"
@@ -408,19 +427,22 @@ export default function ReportFlowPage() {
           : "익명 · 실명";
 
   return (
-    <div className="h-dvh w-full flex flex-col" style={{ backgroundColor: BG }}>
-      {/* 헤더 */}
-      <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
+    <div
+      className="h-dvh w-full flex flex-col relative"
+      style={{ backgroundColor: BG }}
+    >
+      {/* 헤더 (채팅 위 오버레이) */}
+      <div ref={headerRef} className="absolute top-0 left-0 right-0 z-20">
         <div className="h-[44px]" />
         <div className="px-4 pb-2">
           <div className="flex items-center justify-between">
             <button
               onClick={handleClose}
-              className="bg-white/30 rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
+              className="bg-white/30 backdrop-blur-[20px] rounded-full p-2.5 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] transition active:bg-white/70 active:scale-95"
             >
               <X className="w-6 h-6 text-[#262626]" />
             </button>
-            <div className="bg-white/30 rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
+            <div className="bg-white/30 backdrop-blur-[20px] rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
               <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
                 {progress}
               </span>
@@ -432,7 +454,8 @@ export default function ReportFlowPage() {
       {/* 대화 영역 */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-[30px] flex flex-col gap-5"
+        className="flex-1 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
+        style={{ paddingTop: headerHeight + 10, paddingBottom: dockHeight + 20 }}
       >
         {/* AI 인사 */}
         <p className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4]">
@@ -503,10 +526,11 @@ export default function ReportFlowPage() {
         })}
       </div>
 
-      {/* ─── 하단 독 ─── */}
+      {/* ─── 하단 독 (채팅 위 오버레이) ─── */}
+      <div ref={dockRef} className="absolute bottom-0 left-0 right-0">
       {stage === "photo" && (
         <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
             <div className="flex items-center gap-2.5 px-5">
               <button
                 onClick={() => cameraRef.current?.click()}
@@ -533,7 +557,7 @@ export default function ReportFlowPage() {
 
       {stage === "compose" && (
         <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
             <div className="flex justify-center py-2.5">
               <div className="overflow-hidden rounded-[12px] bg-[#e9e9e9] h-[213px] aspect-[3/4]">
                 {photoUrl && (
@@ -570,7 +594,7 @@ export default function ReportFlowPage() {
 
       {(stage === "locationInput" || stage === "afterLocation") && (
         <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
             <AutoTextarea
               className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] placeholder:text-[#7b7b7b] max-h-[140px]"
               placeholder="내용을 입력해주세요."
@@ -592,7 +616,7 @@ export default function ReportFlowPage() {
 
       {stage === "locationConfirm" && (
         <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-4 px-5 flex flex-col gap-2.5 items-center">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-4 px-5 flex flex-col gap-2.5 items-center">
             <p className="text-xs text-[#555555] tracking-[-0.24px] leading-[1.4] text-center">
               아래 지도에서 위치를 직접 이동할 수 있어요.
             </p>
@@ -635,7 +659,7 @@ export default function ReportFlowPage() {
 
       {stage === "question" && (
         <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-2 flex flex-col">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-2 flex flex-col">
             {/* 질문 */}
             <div className="px-5 pb-2">
               <p className="text-base font-medium text-[#262626] tracking-[-0.32px] leading-[1.4]">
@@ -697,7 +721,7 @@ export default function ReportFlowPage() {
 
       {stage === "anonymous" && (
         <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
             <div className="flex items-stretch justify-between gap-2.5 px-5">
               {(
                 [
@@ -725,6 +749,7 @@ export default function ReportFlowPage() {
 
       {/* HomeIndicator 영역 (컴포넌트 미표시, 영역만 유지) */}
       <div className="h-[34px] shrink-0" />
+      </div>
 
       {/* 숨김 파일 입력 */}
       <input
