@@ -2,17 +2,17 @@ import { useNavigate } from "react-router-dom";
 import { UserRound } from "lucide-react";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/App";
-import type { DangerLevel, ReportStatus } from "@/types";
+import type { RiskLevel, ReportStatus, ReporterType } from "@/types";
 
 interface MyReport {
   id: string;
   trackingId: string;
   title: string;
   description: string;
-  category: string;
-  dangerLevel: DangerLevel;
+  departmentName: string;
+  riskLevel: RiskLevel;
   status: ReportStatus;
-  isAnonymous: boolean;
+  reporterType: ReporterType;
   date: string;
 }
 
@@ -23,10 +23,10 @@ const MY_REPORTS: MyReport[] = [
     title: "서강대학교 김대건관",
     description:
       "김대건관 2층 복도 난간 일부가 흔들려 보행 시 위험함. 고정이 헐거워져 기대면 안전사고 우려가 있음.",
-    category: "추락·낙하 위험",
-    dangerLevel: "medium",
-    status: "confirmed",
-    isAnonymous: true,
+    departmentName: "시설관리팀",
+    riskLevel: "MEDIUM",
+    status: "REVIEWING",
+    reporterType: "ANONYMOUS",
     date: "2026년 5월 14일 09:15",
   },
   {
@@ -35,35 +35,34 @@ const MY_REPORTS: MyReport[] = [
     title: "서강대학교 하비에르관",
     description:
       "하비에르관 정문 앞 보도블록이 들떠 있어 보행자가 걸려 넘어질 위험이 있음. 비 오는 날 미끄러짐 사고 우려.",
-    category: "보행 표면 위험",
-    dangerLevel: "high",
-    status: "complete",
-    isAnonymous: false,
+    departmentName: "환경안전팀",
+    riskLevel: "HIGH",
+    status: "RESOLVED",
+    reporterType: "REAL_NAME",
     date: "2026년 5월 12일 11:20",
   },
 ];
 
-const DANGER_LABEL: Record<DangerLevel, string> = {
-  low: "낮음",
-  medium: "중간",
-  high: "높음",
+const DANGER_LABEL: Record<RiskLevel, string> = {
+  LOW: "낮음",
+  MEDIUM: "중간",
+  HIGH: "높음",
 };
-const DANGER_DOT: Record<DangerLevel, string> = {
-  low: "bg-[#E5C946]",
-  medium: "bg-[#E8943A]",
-  high: "bg-[#D94A4A]",
+const DANGER_DOT: Record<RiskLevel, string> = {
+  LOW: "bg-[#E5C946]",
+  MEDIUM: "bg-[#E8943A]",
+  HIGH: "bg-[#D94A4A]",
 };
-const DANGER_BORDER: Record<DangerLevel, string> = {
-  low: "border-[#E5C946]",
-  medium: "border-[#E8943A]",
-  high: "border-[#D94A4A]",
+const DANGER_BORDER: Record<RiskLevel, string> = {
+  LOW: "border-[#E5C946]",
+  MEDIUM: "border-[#E8943A]",
+  HIGH: "border-[#D94A4A]",
 };
 
 const STATUS_FLOW: { key: ReportStatus; label: string }[] = [
-  { key: "received", label: "접수중" },
-  { key: "confirmed", label: "접수완료" },
-  { key: "reviewing", label: "검토중" },
-  { key: "complete", label: "처리완료" },
+  { key: "RECEIVED", label: "접수완료" },
+  { key: "REVIEWING", label: "검토중" },
+  { key: "RESOLVED", label: "처리완료" },
 ];
 
 export default function MyReportsPage() {
@@ -142,13 +141,13 @@ function ReportCard({ report }: { report: MyReport }) {
               {STATUS_FLOW.find((s) => s.key === report.status)?.label}
             </span>
             <span className="text-xs font-medium text-[#262626] bg-[#F5F5F5] border border-[#E9E9E9] rounded-full px-2.5 py-1 tracking-[-0.3px]">
-              {report.category}
+              {report.departmentName}
             </span>
             <span
-              className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[report.dangerLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 leading-[1.48]`}
+              className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[report.riskLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 leading-[1.48]`}
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[report.dangerLevel]}`} />
-              {DANGER_LABEL[report.dangerLevel]}
+              <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[report.riskLevel]}`} />
+              {DANGER_LABEL[report.riskLevel]}
             </span>
           </div>
           <div className="flex items-start justify-between gap-2">
@@ -175,7 +174,7 @@ function ReportCard({ report }: { report: MyReport }) {
             {report.trackingId}
           </span>
           <span className="text-[10px] font-medium text-[#7B7B7B] border border-[#E9E9E9] rounded-full px-2 py-0.5 tracking-[-0.25px]">
-            {report.isAnonymous ? "익명" : "실명"}
+            {report.reporterType === "ANONYMOUS" ? "익명" : "실명"}
           </span>
         </div>
       </div>

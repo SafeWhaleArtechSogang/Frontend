@@ -9,6 +9,9 @@ const SOGANG_RED = "#a92614";
 // 서강대 캠퍼스 중심
 const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
 
+// 제안자 (로그인 정보 기반 · 실명 고정)
+const REPORTER_NAME = "김준수";
+
 // 맞춤 질문 (분석 결과 기반 · 최대 3개)
 const QUESTIONS = [
   { q: "통행에 얼마나 방해가 되나요?", options: ["지나갈 수 있음", "우회해야 함", "통행 불가"] },
@@ -23,7 +26,6 @@ type Stage =
   | "locationConfirm"
   | "afterLocation"
   | "question"
-  | "anonymous"
   | "proposal";
 
 type Msg =
@@ -109,8 +111,7 @@ export default function ReportFlowPage() {
   const [pendingScroll, setPendingScroll] = useState<"top" | "bottom">("bottom");
   const [answers, setAnswers] = useState<string[]>([]);
 
-  // 제안서 문서
-  const [anonymity, setAnonymity] = useState<"익명" | "실명">("익명");
+  // 제안서 문서 (제안자는 로그인 정보 기반 실명 고정)
   const [hazardContent, setHazardContent] = useState("");
   const [improvement, setImprovement] = useState("");
   const [editingSection, setEditingSection] = useState<
@@ -247,28 +248,19 @@ export default function ReportFlowPage() {
     } else {
       setTimeout(() => {
         setPendingScroll("top");
-        addMsgs(
-          { role: "ai", text: "내용을 확정했어요.", topAnchor: true },
-          {
-            role: "ai",
-            text: "이 제보를 익명으로 보낼까요? 실명으로 보낼까요?",
-            emphasis: ["익명", "실명"],
-          },
+        addMsgs({
+          role: "ai",
+          text: "내용을 정리해 제안서를 작성했어요.\n실명(로그인 정보)으로 전송됩니다.",
+          emphasis: "실명(로그인 정보)",
+          topAnchor: true,
+        });
+        setHazardContent(
+          `${locationText}. ${memo.trim()} (통행 영향: ${answers[0] ?? "-"} / 위험 지속성: ${answers[1] ?? "-"} / 주변 통행량: ${answers[2] ?? "-"})`,
         );
-        setStage("anonymous");
+        setImprovement("현장 점검 후 위험 요소 보수와 임시 안전표시 설치를 요청드립니다.");
+        setTimeout(() => setStage("proposal"), 700);
       }, 600);
     }
-  };
-
-  const handleAnonymous = (choice: "익명" | "실명") => {
-    setPendingScroll("bottom");
-    addMsgs({ role: "user", text: choice });
-    setAnonymity(choice);
-    setHazardContent(
-      `${locationText}. ${memo.trim()} (통행 영향: ${answers[0] ?? "-"} / 위험 지속성: ${answers[1] ?? "-"} / 주변 통행량: ${answers[2] ?? "-"})`,
-    );
-    setImprovement("현장 점검 후 위험 요소 보수와 임시 안전표시 설치를 요청드립니다.");
-    setTimeout(() => setStage("proposal"), 500);
   };
 
   const startEdit = (section: "hazard" | "improvement") => {
@@ -327,7 +319,7 @@ export default function ReportFlowPage() {
               제안자
             </span>
             <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
-              {anonymity}
+              {REPORTER_NAME} (실명)
             </span>
           </div>
 
@@ -422,9 +414,7 @@ export default function ReportFlowPage() {
           stage === "locationConfirm" ||
           stage === "afterLocation"
         ? "신고 위치 2/4"
-        : stage === "question"
-          ? "맞춤 질문 3/4"
-          : "익명 · 실명";
+        : "맞춤 질문 3/4";
 
   return (
     <div
@@ -719,34 +709,6 @@ export default function ReportFlowPage() {
         </div>
       )}
 
-      {stage === "anonymous" && (
-        <div className="p-2.5 shrink-0">
-          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] py-5">
-            <div className="flex items-stretch justify-between gap-2.5 px-5">
-              {(
-                [
-                  { key: "익명", desc: "부서에서 확인 불가" },
-                  { key: "실명", desc: "학과 · 학번 함께 전달" },
-                ] as { key: "익명" | "실명"; desc: string }[]
-              ).map(({ key, desc }) => (
-                <button
-                  key={key}
-                  onClick={() => handleAnonymous(key)}
-                  className="flex-1 flex flex-col items-center justify-center gap-1 border border-[#d9d9d9] rounded-[10px] p-3 transition active:bg-[#F5F5F5] active:border-[#262626] active:scale-[0.98]"
-                >
-                  <span className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
-                    {key}
-                  </span>
-                  <span className="text-xs text-[#7b7b7b] tracking-[-0.24px]">
-                    {desc}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* HomeIndicator 영역 (컴포넌트 미표시, 영역만 유지) */}
       <div className="h-[34px] shrink-0" />
       </div>
@@ -914,10 +876,10 @@ function MapPreview({
   }, [query]);
 
   return (
-    <div className="relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
+    <div className="isolate relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
       <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
       {/* 고정 중앙 핀 (지도를 움직여 좌표 변경) */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
+      <div className="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
         <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
       </div>
     </div>
@@ -951,9 +913,9 @@ function StaticMap({ lat, lng }: { lat: number; lng: number }) {
   }, [lat, lng]);
 
   return (
-    <div className="relative w-[300px] max-w-full h-[191px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
+    <div className="isolate relative w-[300px] max-w-full h-[191px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
       <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
+      <div className="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
         <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
       </div>
     </div>

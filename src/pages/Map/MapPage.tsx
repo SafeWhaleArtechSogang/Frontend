@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, List, LocateFixed, ChevronRight, X, Share, Heart, UserRound } from "lucide-react";
+import { Plus, List, ChevronRight, ChevronDown, X, Share, Heart, UserRound } from "lucide-react";
 import { useAuth } from "@/App";
-import type { DangerLevel, ReportStatus } from "@/types";
+import type { RiskLevel, ReportStatus } from "@/types";
 
 declare global {
   interface Window {
@@ -15,14 +15,12 @@ interface PinItem {
   id: string;
   title: string;
   description: string;
-  category: string;
-  dangerLevel: DangerLevel;
+  departmentName: string;
+  riskLevel: RiskLevel;
   status: ReportStatus;
-  school: string;
   address: string;
   date: string;
   isMine: boolean;
-  source: "user" | "public";
   geoQuery?: string; // 카카오 장소 검색용 키워드 (지도 마커 좌표 조회)
   latitude?: number;
   longitude?: number;
@@ -33,14 +31,12 @@ const DUMMY_PINS: PinItem[] = [
     id: "1",
     title: "서강대학교 정문 앞 횡단보도",
     description: "정문 앞 횡단보도 옆 가드레일 일부가 파손되어 있음. 정문 앞 횡단보도 옆 가드레일 일부가 파손되어 있음.",
-    category: "교내 교통 위험",
-    dangerLevel: "high",
-    status: "received",
-    school: "서강대학교",
+    departmentName: "시설관리팀",
+    riskLevel: "HIGH",
+    status: "RECEIVED",
     address: "서울 마포구 백범로 35",
     date: "2026년 5월 15일 14:30",
     isMine: false,
-    source: "user",
     geoQuery: "서강대학교 정문",
     latitude: 37.5509,
     longitude: 126.9400,
@@ -49,14 +45,12 @@ const DUMMY_PINS: PinItem[] = [
     id: "2",
     title: "서강대학교 김대건관",
     description: "김대건관 2층 복도 난간 일부가 흔들려 보행 시 위험함. 고정이 헐거워져 기대면 안전사고 우려가 있음.",
-    category: "추락·낙하 위험",
-    dangerLevel: "medium",
-    status: "confirmed",
-    school: "서강대학교",
+    departmentName: "시설관리팀",
+    riskLevel: "MEDIUM",
+    status: "REVIEWING",
     address: "서울 마포구 백범로 35",
     date: "2026년 5월 14일 09:15",
     isMine: true,
-    source: "user",
     geoQuery: "서강대학교 김대건관",
     latitude: 37.5506,
     longitude: 126.9404,
@@ -65,14 +59,12 @@ const DUMMY_PINS: PinItem[] = [
     id: "3",
     title: "서강대학교 정하상관",
     description: "정하상관 1층 출입문 유리에 금이 가 있어 파손 시 부상 위험이 있음. 통행이 잦은 구간이라 빠른 점검이 필요함.",
-    category: "구조물 위험",
-    dangerLevel: "low",
-    status: "reviewing",
-    school: "서강대학교",
+    departmentName: "전산정보처",
+    riskLevel: "LOW",
+    status: "REVIEWING",
     address: "서울 마포구 백범로 35",
     date: "2026년 5월 13일 16:42",
     isMine: false,
-    source: "user",
     geoQuery: "서강대학교 정하상관",
     latitude: 37.5501,
     longitude: 126.9417,
@@ -81,38 +73,29 @@ const DUMMY_PINS: PinItem[] = [
     id: "4",
     title: "서강대학교 하비에르관",
     description: "하비에르관 정문 앞 보도블록이 들떠 있어 보행자가 걸려 넘어질 위험이 있음. 비 오는 날 미끄러짐 사고 우려.",
-    category: "보행 표면 위험",
-    dangerLevel: "high",
-    status: "complete",
-    school: "서강대학교",
+    departmentName: "환경안전팀",
+    riskLevel: "HIGH",
+    status: "RESOLVED",
     address: "서울 마포구 백범로 35",
     date: "2026년 5월 12일 11:20",
     isMine: true,
-    source: "user",
     geoQuery: "서강대학교 하비에르관",
     latitude: 37.5514,
     longitude: 126.9413,
   },
 ];
 
-const DANGER_LABEL: Record<DangerLevel, string> = { low: "낮음", medium: "중간", high: "높음" };
-const DANGER_DOT: Record<DangerLevel, string> = {
-  low: "bg-[#E5C946]",
-  medium: "bg-[#E8943A]",
-  high: "bg-[#D94A4A]",
+const DANGER_LABEL: Record<RiskLevel, string> = { LOW: "낮음", MEDIUM: "중간", HIGH: "높음" };
+const DANGER_DOT: Record<RiskLevel, string> = {
+  LOW: "bg-[#E5C946]",
+  MEDIUM: "bg-[#E8943A]",
+  HIGH: "bg-[#D94A4A]",
 };
-const DANGER_BORDER: Record<DangerLevel, string> = {
-  low: "border-[#E5C946]",
-  medium: "border-[#E8943A]",
-  high: "border-[#D94A4A]",
+const DANGER_BORDER: Record<RiskLevel, string> = {
+  LOW: "border-[#E5C946]",
+  MEDIUM: "border-[#E8943A]",
+  HIGH: "border-[#D94A4A]",
 };
-
-const STATUS_LABELS: { key: ReportStatus; label: string }[] = [
-  { key: "received", label: "접수중" },
-  { key: "confirmed", label: "접수완료" },
-  { key: "reviewing", label: "검토중" },
-  { key: "complete", label: "처리완료" },
-];
 
 interface SearchResult {
   id: string;
@@ -133,7 +116,6 @@ export default function MapPage() {
   const { isLoggedIn } = useAuth();
   const mapRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const [sheetExpanded, setSheetExpanded] = useState(true);
   const [sheetFullscreen, setSheetFullscreen] = useState(false);
@@ -142,16 +124,12 @@ export default function MapPage() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedPin, setSelectedPin] = useState<PinItem | null>(null);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
   const [kakaoMap, setKakaoMap] = useState<any>(null);
 
   const allPins = DUMMY_PINS;
-  const minePins = useMemo(() => allPins.filter((p) => p.isMine), [allPins]);
 
   const FILTER_TABS = [
-    { id: "all", label: "전체 보기" },
+    { id: "all", label: "전체 신고" },
     { id: "mine", label: "내 신고" },
   ];
 
@@ -194,36 +172,6 @@ export default function MapPage() {
     setDragStartY(null);
   };
 
-  // 카카오 장소 검색
-  const handleSearch = (query: string) => {
-    if (!window.kakao?.maps?.services || !query.trim()) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
-    const ps = new window.kakao.maps.services.Places();
-    ps.keywordSearch(query, (data: SearchResult[], status: string) => {
-      if (status === window.kakao.maps.services.Status.OK) {
-        setSearchResults(data.slice(0, 8));
-        setShowSearchResults(true);
-      } else {
-        setSearchResults([]);
-        setShowSearchResults(false);
-      }
-    });
-  };
-
-  // 검색 결과 클릭 → 지도 이동
-  const handleSelectPlace = (place: SearchResult) => {
-    if (kakaoMap) {
-      const coords = new window.kakao.maps.LatLng(place.y, place.x);
-      kakaoMap.setCenter(coords);
-      kakaoMap.setLevel(3);
-    }
-    setSearchQuery(place.place_name);
-    setShowSearchResults(false);
-  };
-
   const handleReportStart = () => {
     if (!isLoggedIn) {
       navigate("/login", { state: { from: "/report" } });
@@ -245,11 +193,11 @@ export default function MapPage() {
   }, [sheetExpanded, sheetFullscreen]);
 
   // 커스텀 마커 SVG 생성
-  const createPinSvg = (level: DangerLevel) => {
-    const colors: Record<DangerLevel, string> = {
-      low: "#E5C946",
-      medium: "#E8943A",
-      high: "#D94A4A",
+  const createPinSvg = (level: RiskLevel) => {
+    const colors: Record<RiskLevel, string> = {
+      LOW: "#E5C946",
+      MEDIUM: "#E8943A",
+      HIGH: "#D94A4A",
     };
     const color = colors[level];
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
@@ -317,7 +265,7 @@ export default function MapPage() {
     const drawMarker = (pin: PinItem, lat: number, lng: number) => {
       if (cancelled) return;
       const markerImage = new window.kakao.maps.MarkerImage(
-        createPinSvg(pin.dangerLevel),
+        createPinSvg(pin.riskLevel),
         new window.kakao.maps.Size(36, 46),
         { offset: new window.kakao.maps.Point(18, 46) }
       );
@@ -355,86 +303,8 @@ export default function MapPage() {
     };
   }, [kakaoMap, allPins]);
 
-  // 검색 결과 외부 클릭 시 닫기
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-search-area]")) {
-        setShowSearchResults(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   return (
     <div className="relative h-dvh flex flex-col">
-      {/* Search Area */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-3" data-search-area>
-        {/* Search Input */}
-        <div className="relative">
-          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-primary z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            ref={searchInputRef}
-            type="text"
-            className="w-full py-2.5 pl-11 pr-4 bg-white rounded-[4px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] text-base font-semibold text-text-primary tracking-[-0.35px] placeholder:text-[#7B7B7B] placeholder:font-semibold outline-none"
-            placeholder="캠퍼스 건물을 검색하세요"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              handleSearch(e.target.value);
-            }}
-            onFocus={() => {
-              if (searchResults.length > 0) setShowSearchResults(true);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSearch(searchQuery);
-              }
-            }}
-          />
-          {searchQuery && (
-            <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center"
-              onClick={() => {
-                setSearchQuery("");
-                setSearchResults([]);
-                setShowSearchResults(false);
-                searchInputRef.current?.focus();
-              }}
-            >
-              <X className="w-4 h-4 text-[#7B7B7B]" />
-            </button>
-          )}
-        </div>
-
-        {/* Search Results Dropdown */}
-        {showSearchResults && searchResults.length > 0 && (
-          <div className="mt-1 bg-white rounded-[8px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] overflow-hidden max-h-[400px] overflow-y-auto">
-            {searchResults.map((place, idx) => (
-              <div
-                key={place.id || idx}
-                className="flex items-center justify-between px-4 py-3 border-b border-[#F0F0F0] last:border-b-0 hover:bg-[#F9F9F9] active:bg-[#F0F0F0] transition-colors"
-              >
-                <button
-                  className="flex-1 text-left min-w-0"
-                  onClick={() => handleSelectPlace(place)}
-                >
-                  <p className="text-sm font-semibold text-[#262626] tracking-[-0.35px] truncate">
-                    {place.place_name}
-                  </p>
-                  <p className="text-xs font-medium text-[#7B7B7B] tracking-[-0.3px] truncate mt-0.5">
-                    {place.road_address_name || place.address_name}
-                  </p>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Map */}
       <div ref={mapRef} className="flex-1 bg-bg-tertiary">
         {!mapLoaded && (
@@ -442,33 +312,14 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* Danger Level Legend — 검색창 아래 우측 상단 */}
-      {!showSearchResults && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-[64px] z-10 flex items-center gap-2.5 bg-white rounded-[10px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] px-3 py-1.5">
-          <span className="text-[10px] font-semibold text-[#262626] tracking-[-0.25px]">위험도</span>
-          {(["high", "medium", "low"] as DangerLevel[]).map((level) => (
-            <div key={level} className="flex items-center gap-1">
-              <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[level]}`} />
-              <span className="text-[10px] font-medium text-[#262626] tracking-[-0.25px]">{DANGER_LABEL[level]}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Right FAB column: 위치 → 신고 */}
+      {/* 신고 버튼 (바텀시트 위) */}
       <button
-        className="absolute right-4 z-20 w-11 h-11 bg-white rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] flex items-center justify-center"
-        style={{ bottom: `${sheetHeight + 15 + 44 + 15}px` }}
-        onClick={() => {}}
-      >
-        <LocateFixed className="w-5 h-5 text-text-primary" />
-      </button>
-      <button
-        className="absolute right-4 z-20 w-11 h-11 bg-primary rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)] flex items-center justify-center"
+        className="absolute right-4 z-20 flex items-center gap-1 bg-[#262626] rounded-full pl-2.5 pr-3 py-2 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.2)] transition active:brightness-90"
         style={{ bottom: `${sheetHeight + 15}px` }}
         onClick={handleReportStart}
       >
-        <Plus className="w-5 h-5 text-text-inverse" />
+        <Plus className="w-5 h-5 text-white" />
+        <span className="text-[15px] font-medium text-white tracking-[-0.375px]">신고</span>
       </button>
       {showListButton && (
         <div className="absolute left-1/2 -translate-x-1/2 z-20" style={{ bottom: `${sheetHeight + 15}px` }}>
@@ -482,7 +333,7 @@ export default function MapPage() {
       {/* ─── Bottom Sheet ─── */}
       <div
         ref={sheetRef}
-        className={`absolute bottom-0 left-0 right-0 z-30 bg-white shadow-[0px_-4px_20px_0px_rgba(0,0,0,0.15)] transition-all duration-300 overflow-hidden flex flex-col ${sheetFullscreen ? "rounded-none" : "rounded-t-[10px]"}`}
+        className={`absolute bottom-0 left-0 right-0 z-30 bg-[#fcfcfc] shadow-[0px_-4px_20px_0px_rgba(0,0,0,0.25)] transition-all duration-300 overflow-hidden flex flex-col ${sheetFullscreen ? "rounded-none" : "rounded-t-[10px]"}`}
         onTransitionEnd={(e) => {
           // 시트가 완전히 내려온 뒤에만 리스트 버튼 표시
           if (e.target === e.currentTarget && !sheetExpanded && !sheetFullscreen) {
@@ -497,180 +348,176 @@ export default function MapPage() {
               : "15dvh",
         }}
       >
-        {/* Handle */}
-        <div
-          className="w-full flex justify-center py-4 cursor-pointer touch-none shrink-0"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onClick={() => {
-            if (sheetFullscreen) { setSheetFullscreen(false); return; }
-            if (selectedPin && sheetExpanded) { setSheetFullscreen(true); return; }
-            if (selectedPin) { setSelectedPin(null); return; }
-            setSheetExpanded(!sheetExpanded);
-          }}
-        >
-          <div className="w-14 h-[5px] bg-[#D9D9D9] rounded-full" />
-        </div>
+        {/* Handle (전체화면에서는 숨김 → 접기 버튼 사용) */}
+        {!sheetFullscreen && (
+          <div
+            className="w-full flex justify-center py-4 cursor-pointer touch-none shrink-0"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onClick={() => {
+              if (selectedPin && sheetExpanded) { setSheetFullscreen(true); return; }
+              if (selectedPin) { setSelectedPin(null); return; }
+              setSheetExpanded(!sheetExpanded);
+            }}
+          >
+            <div className="w-14 h-[5px] bg-[#D9D9D9] rounded-full" />
+          </div>
+        )}
 
         {selectedPin ? (
           // ─── Pin Detail View ───
           sheetFullscreen ? (
-            // ─── Fullscreen Detail (피그마 디자인) ───
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto">
-                <div className="px-4 flex flex-col gap-10">
-                  {/* 상단: 이미지 + 정보 + 설명 */}
-                  <div className="flex flex-col gap-[30px]">
-                    {/* Images — 가로 스크롤 */}
-                    <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
-                      <div className="w-[300px] h-[300px] bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                      <div className="h-[300px] aspect-[3/4] bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                      <div className="h-[300px] aspect-[3/4] bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                    </div>
+            // ─── Fullscreen Detail (155:1413) ───
+            <div className="flex-1 overflow-y-auto scrollbar-hide relative">
+              {/* 접기 버튼 */}
+              <button
+                className="absolute top-4 left-4 z-10 w-8 h-8 bg-[#f5f5f5] rounded-full flex items-center justify-center transition active:scale-95"
+                onClick={() => setSheetFullscreen(false)}
+              >
+                <ChevronDown className="w-5 h-5 text-[#262626]" />
+              </button>
 
-                    {/* 정보 영역 */}
-                    <div className="flex flex-col gap-2.5">
-                      {/* Tags */}
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-[#262626] bg-[#F5F5F5] border border-[#E9E9E9] rounded-full px-2.5 py-1 tracking-[-0.3px]">
-                            {selectedPin.category}
-                          </span>
-                          <span className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[selectedPin.dangerLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 leading-[1.48]`}>
-                            <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[selectedPin.dangerLevel]}`} />
-                            {DANGER_LABEL[selectedPin.dangerLevel]}
-                          </span>
-                          {selectedPin.isMine && (
-                            <span className="w-[26px] h-[26px] rounded-full border border-[#E9E9E9] flex items-center justify-center">
-                              <span className="text-[10px] font-semibold text-[#7B7B7B] tracking-[-0.25px]">My</span>
-                            </span>
-                          )}
-                        </div>
-                        {/* Title + Date */}
-                        <div className="flex items-center gap-2">
-                          <h3 className="flex-1 text-lg font-bold text-[#1d1d1f] tracking-[-0.45px] leading-[1.48]">
-                            {selectedPin.title}
-                          </h3>
-                          <span className="text-[10px] font-medium text-[#7A7A7A] tracking-[-0.25px] whitespace-nowrap shrink-0">
-                            {selectedPin.date}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Description */}
-                      <p className="text-sm font-medium text-[#7A7A7A] tracking-[-0.35px] leading-[1.48]">
-                        {selectedPin.description}
-                      </p>
-                    </div>
-                  </div>
-
-                </div>
+              {/* 사진 */}
+              <div className="px-1.5 pt-1.5">
+                <div className="w-full aspect-square bg-[#F5F5F5] rounded-[10px]" />
               </div>
 
-              {/* Bottom Buttons — 고정 */}
-              <div className="px-4 pb-[34px] pt-3 shrink-0 flex gap-2.5">
-                <button className="flex-1 h-11 border border-[#262626] rounded-[4px] text-base font-semibold text-[#262626] tracking-[-0.4px] flex items-center justify-center gap-2">
-                  <Share className="w-5 h-5" />
-                  공유하기
-                </button>
-                <button className="flex-1 h-11 bg-[#262626] rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px] flex items-center justify-center gap-2">
-                  <Heart className="w-5 h-5" />
-                  공감해요
-                </button>
-              </div>
-            </div>
-          ) : (
-            // ─── Compact Detail (50dvh) ───
-            <div className="flex-1 flex flex-col overflow-hidden cursor-pointer" onClick={() => setSheetFullscreen(true)}>
-              <div className="flex-1 flex flex-col overflow-hidden px-4 pt-2 pb-4">
+              {/* 정보 */}
+              <div className="px-4 pt-5 pb-12 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium text-white bg-[#C4C4C4] rounded-full px-2.5 py-1 tracking-[-0.3px]">
-                      {STATUS_LABELS.find((s) => s.key === selectedPin.status)?.label}
-                    </span>
-                    <span className="text-xs font-medium text-[#262626] bg-[#F5F5F5] border border-[#E9E9E9] rounded-full px-2.5 py-1 tracking-[-0.3px]">
-                      {selectedPin.category}
-                    </span>
-                    <span className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[selectedPin.dangerLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 leading-[1.48]`}>
-                      <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[selectedPin.dangerLevel]}`} />
-                      {DANGER_LABEL[selectedPin.dangerLevel]}
+                  <div className="flex items-center gap-2">
+                    <span className="h-8 px-2.5 flex items-center bg-[#e9e9e9] rounded-full text-sm font-medium text-[#7b7b7b] tracking-[-0.35px]">
+                      {selectedPin.departmentName}
                     </span>
                     {selectedPin.isMine && (
-                      <span className="w-[26px] h-[26px] rounded-full border border-[#E9E9E9] flex items-center justify-center">
-                        <span className="text-[10px] font-semibold text-[#7B7B7B] tracking-[-0.25px]">My</span>
+                      <span className="w-8 h-8 rounded-full bg-white border border-[#e9e9e9] flex items-center justify-center text-xs font-semibold text-[#7b7b7b]">
+                        My
                       </span>
                     )}
                   </div>
+                  <div className="flex items-center gap-2.5">
+                    <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
+                      <Share className="w-5 h-5 text-[#a92614]" />
+                    </button>
+                    <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
+                      <Heart className="w-5 h-5 text-[#a92614]" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <h3 className="flex-1 text-[17px] font-bold text-[#1d1d1f] tracking-[-0.425px] leading-[1.4]">
+                    {selectedPin.title}
+                  </h3>
+                  <span className="text-[11px] font-medium text-[#7a7a7a] tracking-[-0.275px] whitespace-nowrap shrink-0">
+                    {selectedPin.date}
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-5 mt-1">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">위험장소</span>
+                    <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">{selectedPin.title}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">안전·보건 유해/위험/시설/장소 내용</span>
+                    <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">{selectedPin.description}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">개선 제안 사항</span>
+                    <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">현장 점검 후 위험 요소 보수 및 임시 안전표시 설치를 요청합니다.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // ─── Compact Detail (155:1372) ───
+            <div
+              className="flex-1 flex flex-col overflow-hidden cursor-pointer px-4 pb-12 gap-4"
+              onClick={() => setSheetFullscreen(true)}
+            >
+              {/* 헤더: 부서·My | 공유·공감·닫기 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-8 px-2.5 flex items-center bg-[#e9e9e9] rounded-full text-sm font-medium text-[#7b7b7b] tracking-[-0.35px]">
+                    {selectedPin.departmentName}
+                  </span>
+                  {selectedPin.isMine && (
+                    <span className="w-8 h-8 rounded-full bg-white border border-[#e9e9e9] flex items-center justify-center text-xs font-semibold text-[#7b7b7b]">
+                      My
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+                  <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
+                    <Share className="w-5 h-5 text-[#a92614]" />
+                  </button>
+                  <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
+                    <Heart className="w-5 h-5 text-[#a92614]" />
+                  </button>
                   <button
-                    className="shrink-0 w-8 h-8 bg-[#F5F5F5] rounded-full flex items-center justify-center"
-                    onClick={(e) => { e.stopPropagation(); setSelectedPin(null); setSheetFullscreen(false); }}
+                    className="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center transition active:scale-95"
+                    onClick={() => { setSelectedPin(null); setSheetFullscreen(false); }}
                   >
                     <X className="w-5 h-5 text-[#262626]" />
                   </button>
                 </div>
-                <div className="flex items-start justify-between mt-2">
-                  <h3 className="text-lg font-bold text-[#262626] tracking-[-0.45px] leading-[1.48]">
-                    {selectedPin.title}
-                  </h3>
-                  <span className="text-xs font-medium text-[#7B7B7B] tracking-[-0.3px] whitespace-nowrap ml-2 mt-1">
-                    {selectedPin.date}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm font-medium text-[#7B7B7B] tracking-[-0.35px] leading-[1.48]">
-                  {selectedPin.description}
-                </p>
-                <div className="flex gap-2 mt-4 overflow-x-auto scrollbar-hide flex-1 min-h-[100px] -mx-4 px-4">
-                  <div className="h-full aspect-square bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                  <div className="h-full aspect-[3/4] bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                  <div className="h-full aspect-[3/4] bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                  <div className="h-full aspect-square bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                  <div className="h-full aspect-square bg-[#F5F5F5] rounded-[10px] shrink-0" />
-                </div>
               </div>
-              <div className="px-4 pb-6 pt-2 shrink-0 flex gap-2.5" onClick={(e) => e.stopPropagation()}>
-                <button className="flex-1 h-11 border border-[#262626] rounded-[4px] text-base font-semibold text-[#262626] tracking-[-0.4px] flex items-center justify-center gap-2">
-                  <Share className="w-5 h-5" />
-                  공유하기
-                </button>
-                <button className="flex-1 h-11 bg-[#262626] rounded-[4px] text-base font-semibold text-[#F5F5F5] tracking-[-0.4px] flex items-center justify-center gap-2">
-                  <Heart className="w-5 h-5" />
-                  공감해요
-                </button>
+
+              {/* 제목 + 날짜 */}
+              <div className="flex items-center gap-2">
+                <h3 className="flex-1 text-[17px] font-bold text-[#1d1d1f] tracking-[-0.425px] leading-[1.4]">
+                  {selectedPin.title}
+                </h3>
+                <span className="text-xs font-medium text-[#7b7b7b] tracking-[-0.3px] whitespace-nowrap shrink-0">
+                  {selectedPin.date}
+                </span>
               </div>
+
+              {/* 설명 */}
+              <p className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4] line-clamp-3">
+                {selectedPin.description}
+              </p>
+
+              {/* 사진 */}
+              <div className="flex-1 min-h-[100px] bg-[#F5F5F5] rounded-[10px]" />
             </div>
           )
         ) : (
           // ─── Pin List View ───
           <>
-            {/* Profile */}
-            <button
-              className="flex items-center gap-3 px-4 pt-1 pb-1 shrink-0 w-full text-left"
-              onClick={() => navigate("/my-reports")}
-            >
-              <div className="w-[60px] h-[60px] rounded-[10px] bg-[#E9E9E9] shrink-0 flex items-center justify-center">
-                <UserRound className="w-7 h-7 text-[#7B7B7B]" />
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                <span className="text-base font-semibold text-[#262626] tracking-[-0.4px] leading-[1.48]">
-                  김준수
+            {/* Profile (red card) */}
+            <div className="px-4 pt-1 shrink-0">
+              <button
+                className="w-full bg-[#a92614] rounded-[10px] p-2 flex items-center gap-2.5 text-left transition active:brightness-95"
+                onClick={() => navigate("/my-reports")}
+              >
+                <div className="w-12 h-12 rounded-[6px] bg-white/20 shrink-0 flex items-center justify-center">
+                  <UserRound className="w-6 h-6 text-white/90" />
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <span className="text-base font-semibold text-[#f5f5f5] tracking-[-0.4px] leading-[1.48]">
+                    김준수
+                  </span>
+                  <span className="text-xs font-medium text-[#e9e9e9] tracking-[-0.3px] leading-[1.48]">
+                    20211234
+                  </span>
+                </div>
+                <span className="shrink-0 flex items-center gap-0.5 border border-white/40 rounded-full pl-2.5 pr-1.5 py-1 text-xs font-semibold text-white tracking-[-0.3px] whitespace-nowrap">
+                  내 프로필
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </span>
-                <span className="text-xs font-medium text-[#7B7B7B] tracking-[-0.3px] leading-[1.48]">
-                  내 신고 {minePins.length}건
-                </span>
-              </div>
-              <span className="shrink-0 flex items-center gap-0.5 border border-[#E9E9E9] rounded-full pl-3 pr-2 py-1.5 text-xs font-semibold text-[#7B7B7B] tracking-[-0.3px] whitespace-nowrap">
-                내 신고
-                <ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </button>
+              </button>
+            </div>
             {sheetExpanded && (
               <div className="flex gap-2 px-4 pb-2.5 pt-2.5 overflow-x-auto scrollbar-hide shrink-0">
                 {FILTER_TABS.map((tab) => (
                   <button
                     key={tab.id}
-                    className={`shrink-0 px-2.5 py-1 rounded-full border text-xs tracking-[-0.3px] whitespace-nowrap transition-colors ${
+                    className={`shrink-0 px-2.5 py-1 rounded-full border text-xs tracking-[-0.3px] whitespace-nowrap bg-white transition-colors ${
                       activeFilter === tab.id
-                        ? "border-[#262626] font-semibold text-[#262626]"
-                        : "border-[#E9E9E9] font-medium text-[#7B7B7B]"
+                        ? "border-[#902011] font-semibold text-[#761b0e]"
+                        : "border-[#dcdcdc] font-medium text-[#a2a3a3]"
                     }`}
                     onClick={() => setActiveFilter(tab.id)}
                   >
@@ -689,9 +536,9 @@ export default function MapPage() {
                   >
                     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[pin.dangerLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 shrink-0 leading-[1.48]`}>
-                          <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[pin.dangerLevel]}`} />
-                          {DANGER_LABEL[pin.dangerLevel]}
+                        <span className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[pin.riskLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 shrink-0 leading-[1.48]`}>
+                          <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[pin.riskLevel]}`} />
+                          {DANGER_LABEL[pin.riskLevel]}
                         </span>
                         <h4 className="text-base font-semibold text-[#1d1d1f] tracking-[-0.4px] truncate leading-[1.48]">
                           {pin.title}

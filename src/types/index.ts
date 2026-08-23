@@ -1,153 +1,110 @@
-export interface School {
-  id: string
-  name: string
-  address: string
+// ────────────────────────────────────────────────────────────
+// 안전고래 도메인 타입 — specification repo v1.0 기준
+// (API_명세서.md / DB_설계서.md)
+// ────────────────────────────────────────────────────────────
+
+// 신고 상태: 작성중 → 접수완료 → 검토중 → 처리완료
+export type ReportStatus = "RECEIVING" | "RECEIVED" | "REVIEWING" | "RESOLVED";
+
+// 위험도
+export type RiskLevel = "HIGH" | "MEDIUM" | "LOW";
+
+// 위험도 산정 주체 (AI 기본, 관리자 조정 시 ADMIN)
+export type RiskLevelSource = "AI" | "ADMIN";
+
+// 제보 방식 (관리자 화면 신원 표시 여부만 결정)
+export type ReporterType = "ANONYMOUS" | "REAL_NAME";
+
+// 담당 부서 (동적 · SUPER_ADMIN이 CRUD)
+export interface Department {
+  id: string;
+  name: string; // 시설관리팀, 전산정보처, 환경안전팀 ...
+  code: string; // AI 자동 배정 매핑용 코드
 }
 
-export type DangerLevel = 'low' | 'medium' | 'high'
-
-export type ReportStatus = 'received' | 'confirmed' | 'reviewing' | 'complete'
-
-export type CategoryAxis = 'A' | 'B' | 'C' | 'D'
-
-export interface Category {
-  id: number
-  axis: CategoryAxis
-  axisLabel: string
-  label: string
-  definition: string
-  examples: string
-  department: string
-  visionType: '정적' | '맥락'
+// 건물
+export interface Building {
+  id: string;
+  name: string;
+  code?: string;
+  lat: number;
+  lng: number;
+  address?: string;
 }
 
-export const CATEGORIES: Category[] = [
-  {
-    id: 1,
-    axis: 'A',
-    axisLabel: '교육시설 안전',
-    label: '보행 표면 위험',
-    definition: '바닥·계단·보도의 물리적 결함',
-    examples: '균열, 미끄러움, 단차, 보도블록 들뜸, 빙판',
-    department: '시설팀',
-    visionType: '정적',
-  },
-  {
-    id: 2,
-    axis: 'A',
-    axisLabel: '교육시설 안전',
-    label: '구조물 위험',
-    definition: '건물 구조체·내장재 결함',
-    examples: '천장/벽체 누수·박리·균열, 출입문 파손, 유리 깨짐',
-    department: '시설팀',
-    visionType: '정적',
-  },
-  {
-    id: 3,
-    axis: 'A',
-    axisLabel: '교육시설 안전',
-    label: '조명·전기 위험',
-    definition: '조명 불량 및 전기 시설 위험',
-    examples: '꺼진 조명, 노출 배선, 콘센트 손상, 분전반 개방',
-    department: '시설팀',
-    visionType: '정적',
-  },
-  {
-    id: 4,
-    axis: 'A',
-    axisLabel: '교육시설 안전',
-    label: '옥외 시설 위험',
-    definition: '옥외 공간의 시설·환경 위험',
-    examples: '조경 낙하 우려, 맨홀 손상, 옥외 조형물 결함, 배수 불량',
-    department: '시설팀',
-    visionType: '정적',
-  },
-  {
-    id: 5,
-    axis: 'B',
-    axisLabel: '보행·교통 안전',
-    label: '교내 교통 위험',
-    definition: '차량·보행 동선 충돌 위험',
-    examples: '시야 차단 구간, 위험 횡단 구간, 차량 진입 통제 부재',
-    department: '안전관리센터',
-    visionType: '맥락',
-  },
-  {
-    id: 6,
-    axis: 'B',
-    axisLabel: '보행·교통 안전',
-    label: '퍼스널 모빌리티 위험',
-    definition: '킥보드·자전거·오토바이 관련',
-    examples: '보행로 방치 PM, 위험 운행 구간, 주차 혼잡',
-    department: '안전관리센터',
-    visionType: '맥락',
-  },
-  {
-    id: 7,
-    axis: 'C',
-    axisLabel: '산업재해 환경',
-    label: '작업장·공사장 위험',
-    definition: '공사·작업 중 안전조치 미흡',
-    examples: '개방된 공사 구간, 자재 방치, 안전펜스 부재',
-    department: '안전관리센터',
-    visionType: '정적',
-  },
-  {
-    id: 8,
-    axis: 'C',
-    axisLabel: '산업재해 환경',
-    label: '추락·낙하 위험',
-    definition: '추락 또는 낙하물 위험',
-    examples: '난간 미설치/파손, 노출된 개구부, 낙하 우려 자재',
-    department: '안전관리센터',
-    visionType: '정적',
-  },
-  {
-    id: 9,
-    axis: 'C',
-    axisLabel: '산업재해 환경',
-    label: '화재 안전 위험',
-    definition: '소방 시설·피난 동선 결함',
-    examples: '소화기 부재·만료, 비상구 폐쇄·물건 적치, 위험 전열기구',
-    department: '안전관리센터',
-    visionType: '정적',
-  },
-  {
-    id: 10,
-    axis: 'D',
-    axisLabel: '범죄예방 환경',
-    label: 'CPTED 환경 위험',
-    definition: '범죄 유발 가능 환경 요소',
-    examples: '어두운 통로, 사각지대, 야간 무조명 구역, 시야 차단 구조',
-    department: '안전관리센터+인사총무팀(다중 라우팅)',
-    visionType: '맥락',
-  },
-]
-
-export interface SafetyPin {
-  id: string
-  title: string
-  description: string
-  category: Category
-  dangerLevel: DangerLevel
-  status: ReportStatus
-  school: School
-  address: string
-  latitude: number
-  longitude: number
-  images: string[]
-  createdAt: string
-  isMine: boolean
-  likeCount: number
+// 신고자
+export interface User {
+  id: string;
+  name: string;
+  major?: string;
+  studentNo?: string;
 }
 
-export interface ReportDraft {
-  images: string[]
-  category: Category | null
-  dangerLevel: DangerLevel | null
-  description: string
-  address: string
-  school: School | null
-  latitude: number | null
-  longitude: number | null
+// 제보 사진
+export interface ReportPhoto {
+  id: string;
+  url: string;
+  originalFilename?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  displayOrder: number;
 }
+
+// 신고
+export interface Report {
+  id: string;
+  trackingId: string; // SW-2026-XXXX (제출 시 채번)
+  summary: string;
+  description: string;
+  status: ReportStatus;
+  riskLevel: RiskLevel | null;
+  riskLevelSource: RiskLevelSource;
+  departmentId: string | null;
+  departmentName: string | null;
+  reporterType: ReporterType;
+  buildingId: string | null;
+  buildingName: string | null;
+  isIndoor: boolean | null;
+  floor: string | null;
+  room: string | null;
+  lat: number | null;
+  lng: number | null;
+  detectedHazards: string | null;
+  reportFileUrl: string | null;
+  photos: ReportPhoto[];
+  submittedAt: string | null;
+  createdAt: string;
+}
+
+// 알림
+export type NotificationType = "SUBMITTED" | "STATUS_CHANGED" | "RESOLVED";
+
+export interface AppNotification {
+  id: string;
+  reportId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+// ── UI 표시용 라벨 매핑 ──
+export const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
+  RECEIVING: "작성중",
+  RECEIVED: "접수완료",
+  REVIEWING: "검토중",
+  RESOLVED: "처리완료",
+};
+
+export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
+  HIGH: "높음",
+  MEDIUM: "중간",
+  LOW: "낮음",
+};
+
+export const REPORTER_TYPE_LABEL: Record<ReporterType, string> = {
+  ANONYMOUS: "익명",
+  REAL_NAME: "실명",
+};
