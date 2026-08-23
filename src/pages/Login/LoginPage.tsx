@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth";
 import logo from "@/assets/logo.png";
 
@@ -8,14 +8,10 @@ const GOOGLE_SCRIPT_ID = "google-identity-services";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { login } = useAuth();
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 로그인 후 돌아갈 경로 (없으면 /map)
-  const from = (location.state as { from?: string })?.from || "/map";
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
@@ -28,7 +24,7 @@ export default function LoginPage() {
       setError(null);
       try {
         await login(response.credential);
-        if (!cancelled) navigate(from, { replace: true });
+        if (!cancelled) navigate("/map", { replace: true });
       } catch (cause) {
         if (!cancelled) {
           setError(cause instanceof Error ? cause.message : "로그인에 실패했습니다.");
@@ -89,7 +85,7 @@ export default function LoginPage() {
       cancelled = true;
       googleButton.replaceChildren();
     };
-  }, [from, login, navigate]);
+  }, [login, navigate]);
 
   return (
     <div className="flex flex-col min-h-dvh px-page">
