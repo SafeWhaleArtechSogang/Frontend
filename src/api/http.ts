@@ -58,6 +58,10 @@ export const tokenStore = {
 type Body = object | FormData | undefined;
 
 async function request<T>(method: string, path: string, body?: Body): Promise<T> {
+  return requestWithRetry<T>(method, path, body, true);
+}
+
+async function requestWithRetry<T>(method: string, path: string, body: Body, retry: boolean): Promise<T> {
   const headers: Record<string, string> = {};
   const token = tokenStore.getAccess();
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -69,6 +73,26 @@ async function request<T>(method: string, path: string, body?: Body): Promise<T>
     headers,
     body: isForm ? (body as FormData) : body ? JSON.stringify(body) : undefined,
   });
+
+  if (res.status === 401 && retry && path !== "/auth/refresh" && tokenStore.getRefresh()) {
+    try {
+      const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: tokenStore.getRefresh() }),
+      });
+      const refreshEnv = (await refreshRes.json()) as Envelope<{
+        accessToken: string;
+        refreshToken?: string;
+      }>;
+      if (!refreshRes.ok || !refreshEnv.success || !refreshEnv.data) throw new Error();
+      tokenStore.set(refreshEnv.data.accessToken, refreshEnv.data.refreshToken);
+      return requestWithRetry<T>(method, path, body, false);
+    } catch {
+      tokenStore.clear();
+      window.dispatchEvent(new Event("safewhale:unauthorized"));
+    }
+  }
 
   let env: Envelope<T> | null = null;
   try {

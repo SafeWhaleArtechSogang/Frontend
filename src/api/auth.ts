@@ -3,16 +3,10 @@ import { http, tokenStore } from "./http";
 export interface AuthResult {
   accessToken: string;
   refreshToken?: string;
-  userId: string;
-  name: string;
-  role: string; // ROLE_USER | ROLE_ADMIN
+  expiresIn: number;
 }
 
-export interface AdminAuthResult extends AuthResult {
-  adminId: string;
-  departmentId?: string;
-  departmentName?: string;
-}
+export type AdminAuthResult = AuthResult;
 
 export const authApi = {
   // 소셜 로그인 (Google) — 백엔드가 idToken 검증 후 JWT 발급

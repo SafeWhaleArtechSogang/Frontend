@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, List, ChevronRight, ChevronDown, X, Share, Heart, UserRound } from "lucide-react";
-import { useAuth } from "@/App";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useAuth } from "@/auth";
+import { reportApi } from "@/api";
+import type { Report } from "@/types";
 import type { RiskLevel, ReportStatus } from "@/types";
 
 declare global {
@@ -12,7 +15,7 @@ declare global {
 
 // ─── Data ───
 interface PinItem {
-  id: string;
+  id: number;
   title: string;
   description: string;
   departmentName: string;
@@ -24,66 +27,27 @@ interface PinItem {
   geoQuery?: string; // 카카오 장소 검색용 키워드 (지도 마커 좌표 조회)
   latitude?: number;
   longitude?: number;
+  imageUrl?: string;
 }
 
-const DUMMY_PINS: PinItem[] = [
-  {
-    id: "1",
-    title: "서강대학교 정문 앞 횡단보도",
-    description: "정문 앞 횡단보도 옆 가드레일 일부가 파손되어 있음. 정문 앞 횡단보도 옆 가드레일 일부가 파손되어 있음.",
-    departmentName: "시설관리팀",
-    riskLevel: "HIGH",
-    status: "RECEIVED",
-    address: "서울 마포구 백범로 35",
-    date: "2026년 5월 15일 14:30",
-    isMine: false,
-    geoQuery: "서강대학교 정문",
-    latitude: 37.5509,
-    longitude: 126.9400,
-  },
-  {
-    id: "2",
-    title: "서강대학교 김대건관",
-    description: "김대건관 2층 복도 난간 일부가 흔들려 보행 시 위험함. 고정이 헐거워져 기대면 안전사고 우려가 있음.",
-    departmentName: "시설관리팀",
-    riskLevel: "MEDIUM",
-    status: "REVIEWING",
-    address: "서울 마포구 백범로 35",
-    date: "2026년 5월 14일 09:15",
-    isMine: true,
-    geoQuery: "서강대학교 김대건관",
-    latitude: 37.5506,
-    longitude: 126.9404,
-  },
-  {
-    id: "3",
-    title: "서강대학교 정하상관",
-    description: "정하상관 1층 출입문 유리에 금이 가 있어 파손 시 부상 위험이 있음. 통행이 잦은 구간이라 빠른 점검이 필요함.",
-    departmentName: "전산정보처",
-    riskLevel: "LOW",
-    status: "REVIEWING",
-    address: "서울 마포구 백범로 35",
-    date: "2026년 5월 13일 16:42",
-    isMine: false,
-    geoQuery: "서강대학교 정하상관",
-    latitude: 37.5501,
-    longitude: 126.9417,
-  },
-  {
-    id: "4",
-    title: "서강대학교 하비에르관",
-    description: "하비에르관 정문 앞 보도블록이 들떠 있어 보행자가 걸려 넘어질 위험이 있음. 비 오는 날 미끄러짐 사고 우려.",
-    departmentName: "환경안전팀",
-    riskLevel: "HIGH",
-    status: "RESOLVED",
-    address: "서울 마포구 백범로 35",
-    date: "2026년 5월 12일 11:20",
-    isMine: true,
-    geoQuery: "서강대학교 하비에르관",
-    latitude: 37.5514,
-    longitude: 126.9413,
-  },
-];
+function toPin(report: Report, mineIds: Set<number>): PinItem {
+  return {
+    id: report.id,
+    title: report.building?.name ?? report.summary ?? "안전 신고",
+    description: report.description ?? "상세 내용이 없습니다.",
+    departmentName: report.department?.name ?? "담당 부서 배정 중",
+    riskLevel: report.riskLevel ?? "MEDIUM",
+    status: report.status,
+    address: report.building?.address ?? "서강대학교",
+    date: new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" })
+      .format(new Date(report.submittedAt ?? report.createdAt)),
+    isMine: mineIds.has(report.id),
+    geoQuery: report.building?.name,
+    latitude: report.lat ?? undefined,
+    longitude: report.lng ?? undefined,
+    imageUrl: report.photos[0]?.url,
+  };
+}
 
 const DANGER_LABEL: Record<RiskLevel, string> = { LOW: "낮음", MEDIUM: "중간", HIGH: "높음" };
 const DANGER_DOT: Record<RiskLevel, string> = {
@@ -113,7 +77,7 @@ const SOGANG_CENTER = { lat: 37.5510, lng: 126.9408 };
 
 export default function MapPage() {
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const mapRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -122,26 +86,51 @@ export default function MapPage() {
   const [showListButton, setShowListButton] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(68);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(() => {
+    const key = import.meta.env.VITE_KAKAO_APP_KEY;
+    return !key || key === "your-kakao-javascript-key"
+      ? "지도 키가 없어 목록 모드로 표시 중입니다."
+      : null;
+  });
+  const [pinsLoading, setPinsLoading] = useState(true);
+  const [pinsError, setPinsError] = useState<string | null>(null);
+  const [allPins, setAllPins] = useState<PinItem[]>([]);
   const [selectedPin, setSelectedPin] = useState<PinItem | null>(null);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [kakaoMap, setKakaoMap] = useState<any>(null);
-
-  const allPins = DUMMY_PINS;
 
   const FILTER_TABS = [
     { id: "all", label: "전체 신고" },
     { id: "mine", label: "내 신고" },
   ];
 
-  function filterPins(pins: PinItem[], filter: string): PinItem[] {
-    switch (filter) {
-      case "mine":
-        return pins.filter((p) => p.isMine);
-      case "all":
-      default:
-        return pins;
-    }
-  }
+  useEffect(() => {
+    let cancelled = false;
+    const loadPins = async () => {
+      if (activeFilter === "mine" && !isLoggedIn) {
+        setAllPins([]);
+        setPinsLoading(false);
+        return;
+      }
+      setPinsLoading(true);
+      setPinsError(null);
+      try {
+        const [reports, mineReports] = await Promise.all([
+          reportApi.getMap(activeFilter as "all" | "mine"),
+          isLoggedIn && activeFilter === "all" ? reportApi.getMap("mine") : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+        const mineIds = new Set((activeFilter === "mine" ? reports : mineReports).map((report) => report.id));
+        setAllPins(reports.map((report) => toPin(report, mineIds)));
+      } catch (cause) {
+        if (!cancelled) setPinsError(cause instanceof Error ? cause.message : "신고 목록을 불러오지 못했습니다.");
+      } finally {
+        if (!cancelled) setPinsLoading(false);
+      }
+    };
+    void loadPins();
+    return () => { cancelled = true; };
+  }, [activeFilter, isLoggedIn]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setDragStartY(e.touches[0].clientY);
@@ -189,7 +178,10 @@ export default function MapPage() {
 
   // 시트가 펼쳐지면 리스트 버튼은 즉시 숨김 (내려올 때만 트랜지션 끝에서 표시)
   useEffect(() => {
-    if (sheetExpanded || sheetFullscreen) setShowListButton(false);
+    if (sheetExpanded || sheetFullscreen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShowListButton(false);
+    }
   }, [sheetExpanded, sheetFullscreen]);
 
   // 커스텀 마커 SVG 생성
@@ -212,10 +204,7 @@ export default function MapPage() {
   // 카카오맵 SDK 로드
   useEffect(() => {
     const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
-    if (!appKey) {
-      console.error("VITE_KAKAO_APP_KEY 환경변수가 설정되지 않았습니다.");
-      return;
-    }
+    if (!appKey || appKey === "your-kakao-javascript-key") return;
     // 이미 로드된 경우
     if (window.kakao?.maps) {
       window.kakao.maps.load(() => {
@@ -247,7 +236,7 @@ export default function MapPage() {
       });
     };
     script.onerror = () => {
-      console.error("카카오맵 SDK 로드 실패. 앱키와 도메인 설정을 확인하세요.");
+      setMapError("지도를 불러오지 못했습니다. 앱 키와 허용 도메인을 확인하세요.");
     };
     document.head.appendChild(script);
     return () => {
@@ -308,7 +297,9 @@ export default function MapPage() {
       {/* Map */}
       <div ref={mapRef} className="flex-1 bg-bg-tertiary">
         {!mapLoaded && (
-          <div className="flex items-center justify-center h-full text-text-tertiary">지도를 불러오는 중...</div>
+          <div className="flex items-center justify-center h-full px-8 text-center text-text-tertiary">
+            {mapError ?? "지도를 불러오는 중..."}
+          </div>
         )}
       </div>
 
@@ -379,7 +370,9 @@ export default function MapPage() {
 
               {/* 사진 */}
               <div className="px-1.5 pt-1.5">
-                <div className="w-full aspect-square bg-[#F5F5F5] rounded-[10px]" />
+                <div className="w-full aspect-square bg-[#F5F5F5] rounded-[10px] overflow-hidden">
+                  {selectedPin.imageUrl && <img src={selectedPin.imageUrl} alt="신고 사진" className="w-full h-full object-cover" />}
+                </div>
               </div>
 
               {/* 정보 */}
@@ -480,7 +473,9 @@ export default function MapPage() {
               </p>
 
               {/* 사진 */}
-              <div className="flex-1 min-h-[100px] bg-[#F5F5F5] rounded-[10px]" />
+              <div className="flex-1 min-h-[100px] bg-[#F5F5F5] rounded-[10px] overflow-hidden">
+                {selectedPin.imageUrl && <img src={selectedPin.imageUrl} alt="신고 사진" className="w-full h-full object-cover" />}
+              </div>
             </div>
           )
         ) : (
@@ -490,17 +485,17 @@ export default function MapPage() {
             <div className="px-4 pt-1 shrink-0">
               <button
                 className="w-full bg-[#a92614] rounded-[10px] p-2 flex items-center gap-2.5 text-left transition active:brightness-95"
-                onClick={() => navigate("/my-reports")}
+                onClick={() => navigate(isLoggedIn ? "/my-reports" : "/login", isLoggedIn ? undefined : { state: { from: "/my-reports" } })}
               >
                 <div className="w-12 h-12 rounded-[6px] bg-white/20 shrink-0 flex items-center justify-center">
                   <UserRound className="w-6 h-6 text-white/90" />
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <span className="text-base font-semibold text-[#f5f5f5] tracking-[-0.4px] leading-[1.48]">
-                    김준수
+                    {user?.name ?? "로그인해 주세요"}
                   </span>
                   <span className="text-xs font-medium text-[#e9e9e9] tracking-[-0.3px] leading-[1.48]">
-                    20211234
+                    {user?.studentNo ?? "내 신고를 확인할 수 있어요"}
                   </span>
                 </div>
                 <span className="shrink-0 flex items-center gap-0.5 border border-white/40 rounded-full pl-2.5 pr-1.5 py-1 text-xs font-semibold text-white tracking-[-0.3px] whitespace-nowrap">
@@ -519,7 +514,13 @@ export default function MapPage() {
                         ? "border-[#902011] font-semibold text-[#761b0e]"
                         : "border-[#dcdcdc] font-medium text-[#a2a3a3]"
                     }`}
-                    onClick={() => setActiveFilter(tab.id)}
+                    onClick={() => {
+                      if (tab.id === "mine" && !isLoggedIn) {
+                        navigate("/login", { state: { from: "/map" } });
+                        return;
+                      }
+                      setActiveFilter(tab.id);
+                    }}
                   >
                     {tab.label}
                   </button>
@@ -528,7 +529,12 @@ export default function MapPage() {
             )}
             {sheetExpanded && (
               <div className="overflow-y-auto flex-1">
-                {filterPins(allPins, activeFilter).map((pin) => (
+                {pinsLoading && <p className="px-4 py-6 text-sm text-[#7B7B7B] text-center">신고를 불러오는 중...</p>}
+                {pinsError && <p className="px-4 py-6 text-sm text-[#a92614] text-center">{pinsError}</p>}
+                {!pinsLoading && !pinsError && allPins.length === 0 && (
+                  <p className="px-4 py-6 text-sm text-[#7B7B7B] text-center">표시할 신고가 없습니다.</p>
+                )}
+                {allPins.map((pin) => (
                   <button
                     key={pin.id}
                     className="w-full h-[74px] px-4 flex items-center gap-2.5 border-b border-[#E9E9E9] text-left"

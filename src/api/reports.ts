@@ -1,23 +1,9 @@
 import { http } from "./http";
-import type { Report, ReportStatus, RiskLevel, ReporterType } from "@/types";
-
-// 지도 마커 (경량 응답)
-export interface MapMarker {
-  reportId: string;
-  trackingId: string;
-  buildingId: string | null;
-  buildingName: string | null;
-  lat: number;
-  lng: number;
-  status: ReportStatus;
-  riskLevel: RiskLevel;
-  departmentName: string | null;
-  summary: string;
-}
+import type { Report, ReporterType } from "@/types";
 
 export interface LocationPatch {
-  buildingId?: string;
-  isIndoor?: boolean;
+  buildingId?: number;
+  indoor?: boolean;
   floor?: string;
   room?: string;
   lat?: number;
@@ -27,7 +13,7 @@ export interface LocationPatch {
 // ── 지도 / 공개 조회 ──
 export const reportApi = {
   getMap: (filter: "all" | "mine" = "all", bbox?: string) =>
-    http.get<MapMarker[]>(
+    http.get<Report[]>(
       `/reports/map?filter=${filter}${bbox ? `&bbox=${bbox}` : ""}`,
     ),
 
@@ -35,39 +21,27 @@ export const reportApi = {
     http.get<Report>(`/reports/${trackingId}`),
 
   // ── 신고 플로우 (draft 방식) ──
-  createDraft: () =>
-    http.post<{ reportId: string; status: ReportStatus }>("/reports/draft"),
+  createDraft: () => http.post<Report>("/reports/draft"),
 
-  uploadPhoto: (reportId: string, file: File) => {
+  uploadPhotos: (reportId: number, files: File[]) => {
     const form = new FormData();
-    form.append("photo", file);
-    return http.post<{ photoId: string; url: string; displayOrder: number }>(
-      `/reports/${reportId}/photos`,
-      form,
-    );
+    files.forEach((file) => form.append("photos", file));
+    return http.post<Report>(`/reports/${reportId}/photos`, form);
   },
 
-  deletePhoto: (reportId: string, photoId: string) =>
-    http.del<null>(`/reports/${reportId}/photos/${photoId}`),
-
-  patchLocation: (reportId: string, body: LocationPatch) =>
+  patchLocation: (reportId: number, body: LocationPatch) =>
     http.patch<Report>(`/reports/${reportId}/location`, body),
 
-  patch: (reportId: string, body: { reporterType?: ReporterType }) =>
+  patch: (reportId: number, body: { summary?: string; description?: string; reporterType?: ReporterType }) =>
     http.patch<Report>(`/reports/${reportId}`, body),
 
-  getDuplicates: (reportId: string) =>
+  getDuplicates: (reportId: number) =>
     http.get<Report[]>(`/reports/${reportId}/duplicates`),
 
-  generateReportFile: (reportId: string) =>
-    http.post<{ reportFileUrl: string }>(`/reports/${reportId}/report-file`),
+  generateReportFile: (reportId: number) =>
+    http.post<Report>(`/reports/${reportId}/report-file`),
 
-  submit: (reportId: string) =>
-    http.post<{
-      trackingId: string;
-      departmentName: string;
-      status: ReportStatus;
-    }>(`/reports/${reportId}/submit`),
+  submit: (reportId: number) => http.post<Report>(`/reports/${reportId}/submit`),
 
-  deleteDraft: (reportId: string) => http.del<null>(`/reports/${reportId}`),
+  deleteDraft: (reportId: number) => http.del<null>(`/reports/${reportId}`),
 };

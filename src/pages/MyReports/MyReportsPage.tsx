@@ -1,11 +1,13 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserRound } from "lucide-react";
 import Header from "@/components/layout/Header";
-import { useAuth } from "@/App";
-import type { RiskLevel, ReportStatus, ReporterType } from "@/types";
+import { useAuth } from "@/auth";
+import { meApi } from "@/api";
+import type { Report, RiskLevel, ReportStatus, ReporterType } from "@/types";
 
 interface MyReport {
-  id: string;
+  id: number;
   trackingId: string;
   title: string;
   description: string;
@@ -14,34 +16,24 @@ interface MyReport {
   status: ReportStatus;
   reporterType: ReporterType;
   date: string;
+  imageUrl?: string;
 }
 
-const MY_REPORTS: MyReport[] = [
-  {
-    id: "2",
-    trackingId: "SW-2026-4821",
-    title: "서강대학교 김대건관",
-    description:
-      "김대건관 2층 복도 난간 일부가 흔들려 보행 시 위험함. 고정이 헐거워져 기대면 안전사고 우려가 있음.",
-    departmentName: "시설관리팀",
-    riskLevel: "MEDIUM",
-    status: "REVIEWING",
-    reporterType: "ANONYMOUS",
-    date: "2026년 5월 14일 09:15",
-  },
-  {
-    id: "4",
-    trackingId: "SW-2026-4793",
-    title: "서강대학교 하비에르관",
-    description:
-      "하비에르관 정문 앞 보도블록이 들떠 있어 보행자가 걸려 넘어질 위험이 있음. 비 오는 날 미끄러짐 사고 우려.",
-    departmentName: "환경안전팀",
-    riskLevel: "HIGH",
-    status: "RESOLVED",
-    reporterType: "REAL_NAME",
-    date: "2026년 5월 12일 11:20",
-  },
-];
+function toMyReport(report: Report): MyReport {
+  return {
+    id: report.id,
+    trackingId: report.trackingId ?? "제출 처리 중",
+    title: report.building?.name ?? report.summary ?? "안전 신고",
+    description: report.description ?? "상세 내용이 없습니다.",
+    departmentName: report.department?.name ?? "담당 부서 배정 중",
+    riskLevel: report.riskLevel ?? "MEDIUM",
+    status: report.status,
+    reporterType: report.reporterType,
+    date: new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" })
+      .format(new Date(report.submittedAt ?? report.createdAt)),
+    imageUrl: report.photos[0]?.url,
+  };
+}
 
 const DANGER_LABEL: Record<RiskLevel, string> = {
   LOW: "낮음",
@@ -67,7 +59,31 @@ const STATUS_FLOW: { key: ReportStatus; label: string }[] = [
 
 export default function MyReportsPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { isLoggedIn, isAuthLoading, user, logout } = useAuth();
+  const [reports, setReports] = useState<MyReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthLoading) return;
+    if (!isLoggedIn) {
+      navigate("/login", { replace: true, state: { from: "/my-reports" } });
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const data = await meApi.getReports();
+        if (!cancelled) setReports(data.map(toMyReport));
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "내 신고를 불러오지 못했습니다.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [isAuthLoading, isLoggedIn, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -86,10 +102,10 @@ export default function MyReportsPage() {
           </div>
           <div className="flex-1 min-w-0 flex flex-col gap-0.5">
             <span className="text-base font-semibold text-[#262626] tracking-[-0.4px] leading-[1.48]">
-              김준수
+              {user?.name ?? "사용자"}
             </span>
             <span className="text-xs font-medium text-[#7B7B7B] tracking-[-0.3px] leading-[1.48] truncate">
-              아트&테크놀로지학과 · 20211234
+              {[user?.major, user?.studentNo].filter(Boolean).join(" · ") || "프로필 정보 미등록"}
             </span>
           </div>
           <button
@@ -105,11 +121,15 @@ export default function MyReportsPage() {
         {/* Summary */}
         <div className="px-4 pt-4 pb-2">
           <p className="text-sm font-medium text-[#7B7B7B] tracking-[-0.35px] leading-[1.48] text-center">
-            총 {MY_REPORTS.length}건의 신고를 보냈어요. 추적 ID로 처리 상태를 확인하세요.
+            총 {reports.length}건의 신고를 보냈어요. 추적 ID로 처리 상태를 확인하세요.
           </p>
         </div>
 
-        {MY_REPORTS.length === 0 ? (
+        {loading ? (
+          <p className="py-20 text-center text-sm text-[#7A7A7A]">내 신고를 불러오는 중...</p>
+        ) : error ? (
+          <p className="py-20 px-4 text-center text-sm text-[#a92614]">{error}</p>
+        ) : reports.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-20">
             <p className="text-base font-medium text-[#7A7A7A] tracking-[-0.4px] text-center leading-[1.48]">
               아직 보낸 제보가 없어요.
@@ -119,7 +139,7 @@ export default function MyReportsPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3 px-4 pt-1 pb-4">
-            {MY_REPORTS.map((report) => (
+            {reports.map((report) => (
               <ReportCard key={report.id} report={report} />
             ))}
           </div>
@@ -134,7 +154,9 @@ function ReportCard({ report }: { report: MyReport }) {
     <div className="bg-white rounded-[10px] border border-[#E9E9E9] shadow-[0px_2px_10px_0px_rgba(0,0,0,0.05)] p-4">
       {/* Photo + Tags + Description */}
       <div className="flex gap-3 items-start">
-        <div className="w-[100px] min-w-[100px] aspect-square bg-[#E9E9E9] rounded-[3px] shrink-0" />
+        <div className="w-[100px] min-w-[100px] aspect-square bg-[#E9E9E9] rounded-[3px] shrink-0 overflow-hidden">
+          {report.imageUrl && <img src={report.imageUrl} alt="신고 사진" className="w-full h-full object-cover" />}
+        </div>
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-xs font-medium text-white bg-[#C4C4C4] rounded-full px-2.5 py-1 tracking-[-0.3px]">
