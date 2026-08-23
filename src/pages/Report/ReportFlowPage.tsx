@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useAuth } from "@/auth";
+import { aiApi, reportApi } from "@/api";
 
 // 페이지 배경 (gray/10)
 const BG = "#fcfcfc";
@@ -8,9 +11,6 @@ const BG = "#fcfcfc";
 const SOGANG_RED = "#a92614";
 // 서강대 캠퍼스 중심
 const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
-
-// 제안자 (로그인 정보 기반 · 실명 고정)
-const REPORTER_NAME = "김준수";
 
 // 맞춤 질문 (분석 결과 기반 · 최대 3개)
 const QUESTIONS = [
@@ -72,6 +72,7 @@ function ensureKakao(cb: () => void) {
     return;
   }
   const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
+  if (!appKey || appKey === "your-kakao-javascript-key") return;
   const s = document.createElement("script");
   s.id = "kakao-sdk";
   s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
@@ -82,6 +83,7 @@ function ensureKakao(cb: () => void) {
 
 export default function ReportFlowPage() {
   const navigate = useNavigate();
+  const { isLoggedIn, isAuthLoading, user } = useAuth();
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -95,8 +97,12 @@ export default function ReportFlowPage() {
   const [stage, setStage] = useState<Stage>("photo");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [memo, setMemo] = useState("");
   const [input, setInput] = useState("");
+  const [reportId, setReportId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // 위치
   const [locationQuery, setLocationQuery] = useState(""); // 지도 조회용(고정)
@@ -118,6 +124,12 @@ export default function ReportFlowPage() {
     null | "hazard" | "improvement"
   >(null);
   const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (!isAuthLoading && !isLoggedIn) {
+      navigate("/login", { replace: true, state: { from: "/report" } });
+    }
+  }, [isAuthLoading, isLoggedIn, navigate]);
 
   // objectURL 정리
   useEffect(() => {
@@ -159,33 +171,44 @@ export default function ReportFlowPage() {
   const addMsgs = (...msgs: MsgInput[]) =>
     setMessages((p) => [...p, ...msgs.map((m) => ({ ...m, id: nextId() }) as Msg)]);
 
-  const handleClose = () => navigate("/map");
+  const handleClose = () => {
+    if (reportId) void reportApi.deleteDraft(reportId).catch(() => undefined);
+    navigate("/map");
+  };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPhotoFile(file);
     setPhotoUrl(URL.createObjectURL(file));
     setStage("compose");
   };
 
-  const handleComposeSend = () => {
-    if (!memo.trim()) return;
-    addMsgs(
-      { role: "photo" },
-      { role: "user", text: memo.trim() },
-      { role: "ai", text: "보내주신 사진과 내용을 분석해 제안서를 생성할게요." },
-    );
-    setStage("locationInput");
-    // 분석 후 위치 질문
-    setTimeout(() => {
+  const handleComposeSend = async () => {
+    if (!memo.trim() || !photoFile || submitting) return;
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      const draftReport = reportId
+        ? { id: reportId }
+        : await reportApi.createDraft();
+      setReportId(draftReport.id);
+      await reportApi.uploadPhotos(draftReport.id, [photoFile]);
       addMsgs(
-        { role: "ai", text: "신고 위치가 어디인가요?" },
+        { role: "photo" },
+        { role: "user", text: memo.trim() },
+        { role: "ai", text: "보내주신 사진과 내용을 분석해 제안서를 생성할게요." },
         {
           role: "ai",
-          text: "건물은 정확한 명칭으로, 길·야외라면 가까운 건물을 기준으로 설명해 주세요.\n(예: 로욜라 도서관 2관)",
+          text: "신고 위치가 어디인가요?\n건물은 정확한 명칭으로, 길·야외라면 가까운 건물을 기준으로 설명해 주세요.\n(예: 로욜라 도서관 2관)",
         },
       );
-    }, 1000);
+      setStage("locationInput");
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "사진을 저장하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleInputSend = () => {
@@ -219,15 +242,35 @@ export default function ReportFlowPage() {
     setStage("question");
   };
 
-  const handleLocationConfirm = () => {
-    addMsgs({
-      role: "locationSaved",
-      label: locationText,
-      lat: coords.lat,
-      lng: coords.lng,
-    });
-    setStage("afterLocation");
-    setTimeout(startQuestions, 900);
+  const handleLocationConfirm = async () => {
+    if (!reportId || submitting) return;
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      const candidates = await aiApi.analyzeLocation(coords.lat, coords.lng);
+      const normalized = locationText.replace(/\s/g, "");
+      const candidate =
+        candidates.find((item) => normalized.includes(item.name.replace(/\s/g, ""))) ??
+        candidates[0];
+      await reportApi.patchLocation(reportId, {
+        buildingId: candidate?.buildingId,
+        lat: coords.lat,
+        lng: coords.lng,
+      });
+      addMsgs({
+        role: "locationSaved",
+        label: candidate?.name ?? locationText,
+        lat: coords.lat,
+        lng: coords.lng,
+      });
+      if (candidate) setLocationText(candidate.name);
+      setStage("afterLocation");
+      setTimeout(startQuestions, 900);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "위치를 저장하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleAnswer = (text: string) => {
@@ -235,7 +278,8 @@ export default function ReportFlowPage() {
     if (!t) return;
     setPendingScroll("bottom");
     addMsgs({ role: "user", text: t });
-    setAnswers((p) => [...p, t]);
+    const nextAnswers = [...answers, t];
+    setAnswers(nextAnswers);
     setDirectActive(false);
     setDirectInput("");
     const idx = currentQ;
@@ -254,10 +298,14 @@ export default function ReportFlowPage() {
           emphasis: "실명(로그인 정보)",
           topAnchor: true,
         });
-        setHazardContent(
-          `${locationText}. ${memo.trim()} (통행 영향: ${answers[0] ?? "-"} / 위험 지속성: ${answers[1] ?? "-"} / 주변 통행량: ${answers[2] ?? "-"})`,
-        );
+        const content = `${locationText}. ${memo.trim()} (통행 영향: ${nextAnswers[0] ?? "-"} / 위험 지속성: ${nextAnswers[1] ?? "-"} / 주변 통행량: ${nextAnswers[2] ?? "-"})`;
+        setHazardContent(content);
         setImprovement("현장 점검 후 위험 요소 보수와 임시 안전표시 설치를 요청드립니다.");
+        if (reportId) {
+          void aiApi.analyzeContent(reportId, content).catch((error) => {
+            setApiError(error instanceof Error ? error.message : "AI 목 분석에 실패했습니다.");
+          });
+        }
         setTimeout(() => setStage("proposal"), 700);
       }, 600);
     }
@@ -275,15 +323,34 @@ export default function ReportFlowPage() {
     setEditingSection(null);
   };
 
-  const handleSubmitProposal = () => {
-    navigate("/map");
+  const handleSubmitProposal = async () => {
+    if (!reportId || submitting) return;
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      await reportApi.patch(reportId, {
+        summary: `${locationText} 안전 신고`,
+        description: `${hazardContent}\n\n개선 제안 사항: ${improvement}`,
+        reporterType: "REAL_NAME",
+      });
+      await reportApi.generateReportFile(reportId);
+      await reportApi.submit(reportId);
+      navigate("/map");
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "신고를 전송하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handlePhotoRemove = () => {
+    if (reportId) void reportApi.deleteDraft(reportId).catch(() => undefined);
     // 첫 메시지 재편집
     setMessages([]);
     setLocationQuery("");
     setLocationText("");
+    setReportId(null);
+    setApiError(null);
     setStage("compose");
   };
 
@@ -313,13 +380,18 @@ export default function ReportFlowPage() {
 
         {/* 문서 본문 */}
         <div className="flex-1 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
+          {apiError && (
+            <p className="rounded-[10px] bg-red-50 px-3 py-2 text-sm text-red-700">
+              {apiError}
+            </p>
+          )}
           {/* 제안자 */}
           <div className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">
               제안자
             </span>
             <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
-              {REPORTER_NAME} (실명)
+              {user?.name ?? "로그인 사용자"} (실명)
             </span>
           </div>
 
@@ -392,10 +464,11 @@ export default function ReportFlowPage() {
             <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5">
               <button
                 onClick={handleSubmitProposal}
+                disabled={submitting}
                 className="w-full h-11 rounded-[10px] text-base font-semibold text-white tracking-[-0.4px] transition active:brightness-90"
                 style={{ backgroundColor: SOGANG_RED }}
               >
-                시설관리팀에 전송하기
+                {submitting ? "전송 중..." : "시설관리팀에 전송하기"}
               </button>
             </div>
           </div>
@@ -454,6 +527,12 @@ export default function ReportFlowPage() {
           <span className="font-bold">사진 한 장과 어떤 상황</span>
           인지 함께 알려주세요.
         </p>
+
+        {apiError && (
+          <p className="max-w-[300px] rounded-[10px] bg-red-50 px-3 py-2 text-sm text-red-700">
+            {apiError}
+          </p>
+        )}
 
         {messages.map((m) => {
           if (m.role === "ai") {
@@ -571,6 +650,7 @@ export default function ReportFlowPage() {
               <div className="p-2.5 shrink-0">
                 <button
                   onClick={handleComposeSend}
+                  disabled={submitting}
                   className="rounded-full p-2 flex items-center justify-center transition active:scale-95 active:brightness-90"
                   style={{ backgroundColor: SOGANG_RED }}
                 >
@@ -638,10 +718,11 @@ export default function ReportFlowPage() {
             </div>
             <button
               onClick={handleLocationConfirm}
+              disabled={submitting}
               className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition active:brightness-90"
               style={{ backgroundColor: SOGANG_RED }}
             >
-              이 위치로 저장
+              {submitting ? "저장 중..." : "이 위치로 저장"}
             </button>
           </div>
         </div>
@@ -838,6 +919,10 @@ function MapPreview({
   onCoordsChange: (c: { lat: number; lng: number }) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const hasMapKey = Boolean(
+    import.meta.env.VITE_KAKAO_APP_KEY &&
+      import.meta.env.VITE_KAKAO_APP_KEY !== "your-kakao-javascript-key",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -873,11 +958,16 @@ function MapPreview({
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, onCoordsChange]);
 
   return (
     <div className="isolate relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
       <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
+      {!hasMapKey && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#e9e9e9] px-6 text-center text-xs text-[#555555]">
+          카카오 지도 키 미설정 상태입니다. 기본 캠퍼스 좌표로 신고를 계속할 수 있어요.
+        </div>
+      )}
       {/* 고정 중앙 핀 (지도를 움직여 좌표 변경) */}
       <div className="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
         <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
@@ -889,6 +979,10 @@ function MapPreview({
 // ─── 정적 지도 (저장된 위치 · 채팅 로그용) ───
 function StaticMap({ lat, lng }: { lat: number; lng: number }) {
   const ref = useRef<HTMLDivElement>(null);
+  const hasMapKey = Boolean(
+    import.meta.env.VITE_KAKAO_APP_KEY &&
+      import.meta.env.VITE_KAKAO_APP_KEY !== "your-kakao-javascript-key",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -915,6 +1009,11 @@ function StaticMap({ lat, lng }: { lat: number; lng: number }) {
   return (
     <div className="isolate relative w-[300px] max-w-full h-[191px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
       <div ref={ref} className="w-full h-full bg-[#e9e9e9]" />
+      {!hasMapKey && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#e9e9e9] px-6 text-center text-xs text-[#555555]">
+          지도 키 미설정 · 저장 좌표 {lat.toFixed(4)}, {lng.toFixed(4)}
+        </div>
+      )}
       <div className="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
         <MapPin className="w-8 h-9" style={{ color: SOGANG_RED, fill: SOGANG_RED }} />
       </div>

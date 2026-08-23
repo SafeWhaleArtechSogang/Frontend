@@ -15,7 +15,7 @@ export interface DepartmentWithCount extends Department {
 
 export interface AdminReportQuery {
   status?: ReportStatus;
-  departmentId?: string;
+  departmentId?: number;
   sort?: "latest";
   q?: string;
   page?: number;
@@ -25,7 +25,7 @@ export interface AdminReportQuery {
 function toQuery(q: AdminReportQuery): string {
   const p = new URLSearchParams();
   if (q.status) p.set("status", q.status);
-  if (q.departmentId) p.set("departmentId", q.departmentId);
+  if (q.departmentId) p.set("departmentId", String(q.departmentId));
   if (q.sort) p.set("sort", q.sort);
   if (q.q) p.set("q", q.q);
   p.set("page", String(q.page ?? 0));
@@ -42,20 +42,20 @@ export const adminApi = {
   reports: (query: AdminReportQuery = {}) =>
     http.get<Page<Report>>(`/admin/reports?${toQuery(query)}`),
 
-  reportDetail: (id: string) => http.get<Report>(`/admin/reports/${id}`),
+  reportDetail: (id: number) => http.get<Report>(`/admin/reports/${id}`),
 
-  reportFile: (id: string) =>
-    http.get<{ reportFileUrl: string }>(`/admin/reports/${id}/report-file`),
+  reportFile: (id: number) =>
+    http.get<{ url: string }>(`/admin/reports/${id}/report-file`),
 
-  changeStatus: (id: string, toStatus: ReportStatus) =>
-    http.patch<Report>(`/admin/reports/${id}/status`, { toStatus }),
+  changeStatus: (id: number, status: ReportStatus) =>
+    http.patch<Report>(`/admin/reports/${id}/status`, { status }),
 
-  reassignDepartment: (id: string, departmentId: string) =>
+  reassignDepartment: (id: number, departmentId: number) =>
     http.patch<Report>(`/admin/reports/${id}/department`, { departmentId }),
 
-  changeRiskLevel: (id: string, riskLevel: RiskLevel) =>
+  changeRiskLevel: (id: number, riskLevel: RiskLevel) =>
     http.patch<Report>(`/admin/reports/${id}/risk-level`, { riskLevel }),
 
-  resolve: (id: string, actionNote: string) =>
+  resolve: (id: number, actionNote: string) =>
     http.post<Report>(`/admin/reports/${id}/resolve`, { actionNote }),
 };

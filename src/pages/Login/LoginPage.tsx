@@ -2,9 +2,15 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/App";
 import logo from "@/assets/logo.png";
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const GOOGLE_SCRIPT_ID = "google-identity-services";
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = (_provider: string) => {
     // TODO: Implement OAuth login
@@ -26,18 +32,18 @@ export default function LoginPage() {
 
       {/* Login Buttons */}
       <div className="flex flex-col gap-3 pb-12">
-        <button
-          className="relative flex items-center justify-center w-full h-[52px] rounded-[12px] font-semibold border border-[#E5E5E5] bg-white text-[rgba(0,0,0,0.85)]"
-          onClick={() => handleLogin("google")}
-        >
-          <svg className="absolute left-4" width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M18.171 8.368h-.67v-.035H10v3.333h4.709A5.001 5.001 0 011.667 10 5 5 0 0110 5c1.275 0 2.434.48 3.317 1.266l2.357-2.357A8.295 8.295 0 0010 1.667a8.333 8.333 0 100 16.666 8.333 8.333 0 008.171-9.965z" fill="#FFC107" />
-            <path d="M2.627 6.121l2.74 2.009A5.002 5.002 0 0110 5c1.275 0 2.434.48 3.317 1.266l2.357-2.357A8.295 8.295 0 0010 1.667a8.33 8.33 0 00-7.373 4.454z" fill="#FF3D00" />
-            <path d="M10 18.333a8.294 8.294 0 005.587-2.163l-2.579-2.183A4.963 4.963 0 0110 15a5.001 5.001 0 01-4.701-3.316l-2.72 2.095A8.327 8.327 0 0010 18.333z" fill="#4CAF50" />
-            <path d="M18.171 8.368H17.5v-.035H10v3.333h4.709a5.023 5.023 0 01-1.7 2.32l2.578 2.184c-.182.166 2.746-2.003 2.746-6.17 0-.56-.057-1.104-.163-1.632z" fill="#1976D2" />
-          </svg>
-          Google로 계속하기
-        </button>
+        {GOOGLE_CLIENT_ID ? (
+          <div
+            ref={googleButtonRef}
+            className={`flex min-h-[44px] w-full justify-center ${submitting ? "pointer-events-none opacity-60" : ""}`}
+          />
+        ) : (
+          <p className="text-sm text-[#a92614] text-center">
+            VITE_GOOGLE_CLIENT_ID가 설정되지 않았습니다.
+          </p>
+        )}
+        {submitting && <p className="text-sm text-text-secondary text-center">로그인 확인 중...</p>}
+        {error && <p className="text-sm text-[#a92614] text-center">{error}</p>}
       </div>
     </div>
   );

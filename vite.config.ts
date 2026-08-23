@@ -14,7 +14,14 @@ export default defineConfig({
     host: true,
     port: 5175,
     proxy: {
-      // 공공데이터(기존)
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/files': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/data': {
         target: 'https://apis.data.go.kr',
         changeOrigin: true,
