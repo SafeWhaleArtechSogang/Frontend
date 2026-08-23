@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserRound } from "lucide-react";
 import Header from "@/components/layout/Header";
+import RiskBadge from "@/components/common/RiskBadge";
 import { useAuth } from "@/auth";
 import { meApi } from "@/api";
 import type { Report, RiskLevel, ReportStatus, ReporterType } from "@/types";
@@ -34,22 +35,6 @@ function toMyReport(report: Report): MyReport {
     imageUrl: report.photos[0]?.url,
   };
 }
-
-const DANGER_LABEL: Record<RiskLevel, string> = {
-  LOW: "낮음",
-  MEDIUM: "중간",
-  HIGH: "높음",
-};
-const DANGER_DOT: Record<RiskLevel, string> = {
-  LOW: "bg-[#E5C946]",
-  MEDIUM: "bg-[#E8943A]",
-  HIGH: "bg-[#D94A4A]",
-};
-const DANGER_BORDER: Record<RiskLevel, string> = {
-  LOW: "border-[#E5C946]",
-  MEDIUM: "border-[#E8943A]",
-  HIGH: "border-[#D94A4A]",
-};
 
 const STATUS_FLOW: { key: ReportStatus; label: string }[] = [
   { key: "RECEIVED", label: "접수완료" },
@@ -165,12 +150,7 @@ function ReportCard({ report }: { report: MyReport }) {
             <span className="text-xs font-medium text-[#262626] bg-[#F5F5F5] border border-[#E9E9E9] rounded-full px-2.5 py-1 tracking-[-0.3px]">
               {report.departmentName}
             </span>
-            <span
-              className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[report.riskLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 leading-[1.48]`}
-            >
-              <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[report.riskLevel]}`} />
-              {DANGER_LABEL[report.riskLevel]}
-            </span>
+            <RiskBadge level={report.riskLevel} />
           </div>
           <div className="flex items-start justify-between gap-2">
             <h3 className="text-base font-semibold text-[#1d1d1f] tracking-[-0.4px] leading-[1.48]">

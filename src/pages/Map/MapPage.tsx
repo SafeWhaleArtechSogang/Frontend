@@ -4,6 +4,8 @@ import { Plus, List, ChevronRight, ChevronDown, X, Share, Heart, UserRound } fro
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { reportApi } from "@/api";
+import RiskBadge from "@/components/common/RiskBadge";
+import MyBadge from "@/components/common/MyBadge";
 import type { Report } from "@/types";
 import type { RiskLevel, ReportStatus } from "@/types";
 
@@ -48,18 +50,6 @@ function toPin(report: Report, mineIds: Set<number>): PinItem {
     imageUrl: report.photos[0]?.url,
   };
 }
-
-const DANGER_LABEL: Record<RiskLevel, string> = { LOW: "낮음", MEDIUM: "중간", HIGH: "높음" };
-const DANGER_DOT: Record<RiskLevel, string> = {
-  LOW: "bg-[#E5C946]",
-  MEDIUM: "bg-[#E8943A]",
-  HIGH: "bg-[#D94A4A]",
-};
-const DANGER_BORDER: Record<RiskLevel, string> = {
-  LOW: "border-[#E5C946]",
-  MEDIUM: "border-[#E8943A]",
-  HIGH: "border-[#D94A4A]",
-};
 
 interface SearchResult {
   id: string;
@@ -382,11 +372,7 @@ export default function MapPage() {
                     <span className="h-8 px-2.5 flex items-center bg-[#e9e9e9] rounded-full text-sm font-medium text-[#7b7b7b] tracking-[-0.35px]">
                       {selectedPin.departmentName}
                     </span>
-                    {selectedPin.isMine && (
-                      <span className="w-8 h-8 rounded-full bg-white border border-[#e9e9e9] flex items-center justify-center text-xs font-semibold text-[#7b7b7b]">
-                        My
-                      </span>
-                    )}
+                    {selectedPin.isMine && <MyBadge />}
                   </div>
                   <div className="flex items-center gap-2.5">
                     <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
@@ -435,11 +421,7 @@ export default function MapPage() {
                   <span className="h-8 px-2.5 flex items-center bg-[#e9e9e9] rounded-full text-sm font-medium text-[#7b7b7b] tracking-[-0.35px]">
                     {selectedPin.departmentName}
                   </span>
-                  {selectedPin.isMine && (
-                    <span className="w-8 h-8 rounded-full bg-white border border-[#e9e9e9] flex items-center justify-center text-xs font-semibold text-[#7b7b7b]">
-                      My
-                    </span>
-                  )}
+                  {selectedPin.isMine && <MyBadge />}
                 </div>
                 <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
                   <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
@@ -542,10 +524,7 @@ export default function MapPage() {
                   >
                     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold text-[#262626] border ${DANGER_BORDER[pin.riskLevel]} rounded-full px-2 py-1 tracking-[-0.3px] flex items-center gap-1.5 shrink-0 leading-[1.48]`}>
-                          <span className={`w-2.5 h-2.5 rounded-full ${DANGER_DOT[pin.riskLevel]}`} />
-                          {DANGER_LABEL[pin.riskLevel]}
-                        </span>
+                        <RiskBadge level={pin.riskLevel} className="shrink-0" />
                         <h4 className="text-base font-semibold text-[#1d1d1f] tracking-[-0.4px] truncate leading-[1.48]">
                           {pin.title}
                         </h4>
@@ -555,9 +534,7 @@ export default function MapPage() {
                       </p>
                     </div>
                     {pin.isMine && (
-                      <div className="w-[30px] h-[30px] rounded-full border border-[#E9E9E9] flex items-center justify-center shrink-0">
-                        <span className="text-xs font-semibold text-[#7B7B7B] tracking-[-0.3px] leading-[1.48]">My</span>
-                      </div>
+                      <MyBadge size={30} />
                     )}
                     <ChevronRight className="w-6 h-6 text-[#C4C4C4] shrink-0" />
                   </button>
