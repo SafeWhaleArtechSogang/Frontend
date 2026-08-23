@@ -1,19 +1,16 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/App";
 import logo from "@/assets/logo.png";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { login } = useAuth();
-
-  // 로그인 후 돌아갈 경로 (없으면 /map)
-  const from = (location.state as { from?: string })?.from || "/map";
 
   const handleLogin = (_provider: string) => {
     // TODO: Implement OAuth login
     login();
-    navigate(from, { replace: true });
+    // 로그인 후 항상 지도로 이동
+    navigate("/map", { replace: true });
   };
 
   return (

@@ -14,6 +14,7 @@ export default defineConfig({
     host: true,
     port: 5175,
     proxy: {
+      // 공공데이터(기존)
       '/api/data': {
         target: 'https://apis.data.go.kr',
         changeOrigin: true,
@@ -21,6 +22,12 @@ export default defineConfig({
         headers: {
           'User-Agent': 'Mozilla/5.0',
         },
+      },
+      // 안전고래 백엔드 (Spring Boot) — /api/v1/** → 백엔드로 프록시 (CORS 회피)
+      // 백엔드 포트/주소가 다르면 target만 수정
+      '/api/v1': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
       },
     },
   },
