@@ -1,5 +1,6 @@
 import { Heart } from "lucide-react";
 import ShareIcon from "@/components/common/ShareIcon";
+import { splitDescription } from "@/utils/reportDescription";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import MyBadge from "@/components/common/MyBadge";
 
@@ -19,6 +20,8 @@ interface ReportDetailViewProps {
 
 /** 신고 상세 (Figma 155:1413) — 지도 시트 전체화면과 내 신고에서 공용 */
 export default function ReportDetailView({ report, showMyBadge = false }: ReportDetailViewProps) {
+  const { hazard, improvement } = splitDescription(report.description);
+
   return (
     <>
       {/* 사진 */}
@@ -66,15 +69,17 @@ export default function ReportDetailView({ report, showMyBadge = false }: Report
               안전·보건 유해/위험/시설/장소 내용
             </span>
             <span className="text-sm font-medium text-neutral-800 tracking-[-0.28px] leading-[1.4]">
-              {report.description}
+              {hazard}
             </span>
           </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-neutral-400 tracking-[-0.28px]">개선 제안 사항</span>
-            <span className="text-sm font-medium text-neutral-800 tracking-[-0.28px] leading-[1.4]">
-              현장 점검 후 위험 요소 보수 및 임시 안전표시 설치를 요청합니다.
-            </span>
-          </div>
+          {improvement && (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-neutral-400 tracking-[-0.28px]">개선 제안 사항</span>
+              <span className="text-sm font-medium text-neutral-800 tracking-[-0.28px] leading-[1.4]">
+                {improvement}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </>

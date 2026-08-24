@@ -5,6 +5,7 @@ import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-r
 import { useAuth } from "@/auth";
 import { aiApi, reportApi } from "@/api";
 import type { ReportFlowAnswer, ReportQuestion, ReportQuestionSet } from "@/api";
+import { IMPROVEMENT_MARKER } from "@/utils/reportDescription";
 
 // 페이지 배경 (gray/10)
 const BG = "#fcfcfc";
@@ -342,7 +343,7 @@ export default function ReportFlowPage() {
     try {
       await reportApi.patch(reportId, {
         summary: draftSummary || `${locationText} 안전 신고`,
-        description: `${hazardContent}\n\n개선 제안 사항: ${improvement}`,
+        description: `${hazardContent}${IMPROVEMENT_MARKER}${improvement}`,
         reporterType: "REAL_NAME",
       });
       await reportApi.generateReportFile(reportId);
