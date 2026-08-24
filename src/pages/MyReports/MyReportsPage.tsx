@@ -21,7 +21,7 @@ interface MyReport {
 function toMyReport(report: Report): MyReport {
   return {
     id: report.id,
-    title: report.building?.name ?? report.summary ?? "안전 신고",
+    title: report.locationDescription ?? report.building?.name ?? report.summary ?? "안전 신고",
     description: report.description ?? "상세 내용이 없습니다.",
     departmentName: report.department?.name ?? "담당 부서 배정 중",
     riskLevel: report.riskLevel ?? "MEDIUM",

@@ -40,7 +40,7 @@ interface PinItem {
 function toPin(report: Report, mineIds: Set<number>): PinItem {
   return {
     id: report.id,
-    title: report.building?.name ?? report.summary ?? "안전 신고",
+    title: report.locationDescription ?? report.building?.name ?? report.summary ?? "안전 신고",
     description: report.description ?? "상세 내용이 없습니다.",
     departmentName: report.department?.name ?? "담당 부서 배정 중",
     riskLevel: report.riskLevel ?? "MEDIUM",
@@ -49,7 +49,7 @@ function toPin(report: Report, mineIds: Set<number>): PinItem {
     date: new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" })
       .format(new Date(report.submittedAt ?? report.createdAt)),
     isMine: mineIds.has(report.id),
-    geoQuery: report.building?.name,
+    geoQuery: report.locationDescription ?? report.building?.name,
     latitude: report.lat ?? undefined,
     longitude: report.lng ?? undefined,
     imageUrl: report.photos[0]?.url,
@@ -242,10 +242,9 @@ export default function MapPage() {
     };
   }, []);
 
-  // 제보 핀 마커 표시 — 카카오 장소 검색으로 좌표 조회 (실패 시 하드코딩 좌표 fallback)
+  // 제보 핀 마커 표시 — 저장된 좌표 우선, 좌표가 없는 신고만 장소 검색으로 보완
   useEffect(() => {
-    if (!kakaoMap || !window.kakao?.maps?.services) return;
-    const ps = new window.kakao.maps.services.Places();
+    if (!kakaoMap) return;
     const markers: any[] = [];
     let cancelled = false;
 
@@ -270,18 +269,27 @@ export default function MapPage() {
       markers.push(marker);
     };
 
-    // 모든 제보 핀을 카카오 장소 검색으로 좌표 조회해 표시
+    // 신고 저장 시 확정한 좌표가 있으면 그대로 찍는다.
+    // locationDescription은 "도서관 입구 앞"처럼 서술형이라 장소 검색으로는 찾을 수 없다.
+    const needSearch = allPins.filter((pin) => pin.latitude == null || pin.longitude == null);
     for (const pin of allPins) {
-      const query = pin.geoQuery || pin.title;
-      ps.keywordSearch(query, (data: SearchResult[], status: string) => {
-        if (cancelled) return;
-        if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
-          drawMarker(pin, parseFloat(data[0].y), parseFloat(data[0].x));
-        } else if (pin.latitude != null && pin.longitude != null) {
-          // 검색 실패 시 하드코딩 좌표로 표시
-          drawMarker(pin, pin.latitude, pin.longitude);
-        }
-      });
+      if (pin.latitude != null && pin.longitude != null) {
+        drawMarker(pin, pin.latitude, pin.longitude);
+      }
+    }
+
+    // 좌표가 없는 과거 신고만 건물명으로 검색해 보완한다
+    if (needSearch.length > 0 && window.kakao?.maps?.services) {
+      const ps = new window.kakao.maps.services.Places();
+      for (const pin of needSearch) {
+        const query = pin.geoQuery || pin.title;
+        ps.keywordSearch(query, (data: SearchResult[], status: string) => {
+          if (cancelled) return;
+          if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
+            drawMarker(pin, parseFloat(data[0].y), parseFloat(data[0].x));
+          }
+        });
+      }
     }
 
     return () => {
