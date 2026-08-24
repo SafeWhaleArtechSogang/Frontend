@@ -55,18 +55,25 @@ export function useGoogleIdentity({ onCredential, width }: UseGoogleIdentityOpti
 
   useEffect(() => {
     const clientId = GOOGLE_CLIENT_ID;
-    if (!clientId || width <= 0) return;
+    const container = containerRef.current;
+    if (!clientId || !container || width <= 0) return;
     let cancelled = false;
 
     loadGoogleScript()
       .then(() => {
-        if (cancelled || !window.google?.accounts?.id || !containerRef.current) return;
+        if (cancelled || !window.google?.accounts?.id) return;
+        // StrictMode에서 effect가 두 번 실행돼도 버튼이 겹쳐 쌓이지 않도록 비우고 그린다
+        container.replaceChildren();
         window.google.accounts.id.initialize({
           client_id: clientId,
-          callback: (response) => onCredentialRef.current(response.credential),
+          callback: (response) => {
+            if (cancelled || !response.credential) return;
+            onCredentialRef.current(response.credential);
+          },
+          auto_select: false,
           use_fedcm_for_prompt: true,
         });
-        window.google.accounts.id.renderButton(containerRef.current, {
+        window.google.accounts.id.renderButton(container, {
           type: "standard",
           theme: "outline",
           size: "large",
@@ -84,6 +91,7 @@ export function useGoogleIdentity({ onCredential, width }: UseGoogleIdentityOpti
 
     return () => {
       cancelled = true;
+      container.replaceChildren();
     };
   }, [width]);
 
