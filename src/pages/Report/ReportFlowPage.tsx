@@ -294,8 +294,7 @@ export default function ReportFlowPage() {
         setPendingScroll("top");
         addMsgs({
           role: "ai",
-          text: "내용을 정리해 제안서를 작성했어요.\n실명(로그인 정보)으로 전송됩니다.",
-          emphasis: "실명(로그인 정보)",
+          text: "내용을 정리해 제안서를 작성했어요.",
           topAnchor: true,
         });
         const content = `${locationText}. ${memo.trim()} (통행 영향: ${nextAnswers[0] ?? "-"} / 위험 지속성: ${nextAnswers[1] ?? "-"} / 주변 통행량: ${nextAnswers[2] ?? "-"})`;
@@ -391,7 +390,7 @@ export default function ReportFlowPage() {
               제안자
             </span>
             <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
-              {user?.name ?? "로그인 사용자"} (실명)
+              {user?.name ?? "로그인 사용자"}
             </span>
           </div>
 
@@ -740,7 +739,7 @@ export default function ReportFlowPage() {
             {/* 선택지 */}
             {QUESTIONS[currentQ].options.map((opt, i) => (
               <button
-                key={i}
+                key={opt}
                 onClick={() => handleAnswer(opt)}
                 className="w-full flex items-center gap-4 px-5 py-3 border-b border-[#e9e9e9] transition active:bg-black/5"
               >
