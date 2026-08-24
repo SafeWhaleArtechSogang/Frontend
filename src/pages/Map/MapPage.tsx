@@ -383,7 +383,7 @@ export default function MapPage() {
           // ─── Pin Detail View ───
           sheetFullscreen ? (
             // ─── Fullscreen Detail (155:1413) ───
-            <div className="flex-1 overflow-y-auto scrollbar-hide relative">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide relative">
               {/* 접기 버튼 */}
               <SheetCloseButton
                 className="absolute top-4 left-4 z-10"
@@ -478,7 +478,7 @@ export default function MapPage() {
               )}
             </div>
             {sheetExpanded && (
-              <div className="overflow-y-auto flex-1">
+              <div className="overflow-y-auto flex-1 min-h-0">
                 {pinsLoading && <p className="px-4 py-6 text-sm text-[#7B7B7B] text-center">신고를 불러오는 중...</p>}
                 {pinsError && <p className="px-4 py-6 text-sm text-[#a92614] text-center">{pinsError}</p>}
                 {!pinsLoading && !pinsError && allPins.length === 0 && (
