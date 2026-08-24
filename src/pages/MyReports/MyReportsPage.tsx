@@ -72,14 +72,14 @@ export default function MyReportsPage() {
         <button
           type="button"
           aria-label="뒤로"
-          className="flex size-8 items-center justify-center transition active:scale-95"
+          className="flex size-9 items-center justify-center transition active:scale-95"
           onClick={() => (selected ? setSelected(null) : navigate("/map"))}
         >
           <ChevronLeft className="size-6 text-neutral-800" />
         </button>
         {!selected && (
           // TODO: 알림 화면 디자인이 나오면 연결 (GET /me/notifications)
-          <div className="flex size-8 items-center justify-center" aria-hidden="true">
+          <div className="flex size-9 items-center justify-center" aria-hidden="true">
             <Bell className="size-5 text-neutral-800" />
           </div>
         )}

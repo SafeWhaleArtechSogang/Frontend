@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, List, X, Share, Heart } from "lucide-react";
+import { Plus, List, X, Heart } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { reportApi } from "@/api";
 import DepartmentChip from "@/components/common/DepartmentChip";
+import ShareIcon from "@/components/common/ShareIcon";
 import MyBadge from "@/components/common/MyBadge";
 import ReportDetailView from "@/components/report/ReportDetailView";
 import FilterChip from "@/components/map/FilterChip";
@@ -375,7 +376,7 @@ export default function MapPage() {
             <>
               {/* 접기 버튼 — 스크롤과 무관하게 시트 좌측 상단에 고정 */}
               <SheetCloseButton
-                className="absolute top-4 left-4 z-10 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.15)]"
+                className="absolute top-4 left-4 z-10"
                 onClick={() => setSheetFullscreen(false)}
               />
               <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
@@ -395,14 +396,14 @@ export default function MapPage() {
                   {selectedPin.isMine && <MyBadge />}
                 </div>
                 <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
-                  <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
-                    <Share className="w-5 h-5 text-[#a92614]" />
+                  <button className="size-10 rounded-full bg-sogang-10 flex items-center justify-center transition active:scale-95">
+                    <ShareIcon className="size-5 text-sogang-500" />
                   </button>
-                  <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
+                  <button className="size-10 rounded-full bg-sogang-10 flex items-center justify-center transition active:scale-95">
                     <Heart className="w-5 h-5 text-[#a92614]" />
                   </button>
                   <button
-                    className="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center transition active:scale-95"
+                    className="size-10 rounded-full bg-neutral-50 flex items-center justify-center transition active:scale-95"
                     onClick={() => { setSelectedPin(null); setSheetFullscreen(false); }}
                   >
                     <X className="w-5 h-5 text-[#262626]" />

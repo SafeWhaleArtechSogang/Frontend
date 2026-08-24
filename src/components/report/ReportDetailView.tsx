@@ -1,4 +1,5 @@
-import { Share, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
+import ShareIcon from "@/components/common/ShareIcon";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import MyBadge from "@/components/common/MyBadge";
 
@@ -37,10 +38,10 @@ export default function ReportDetailView({ report, showMyBadge = false }: Report
             {showMyBadge && <MyBadge />}
           </div>
           <div className="flex items-center gap-2.5">
-            <button className="w-8 h-8 rounded-full bg-sogang-50 flex items-center justify-center transition active:scale-95">
-              <Share className="w-5 h-5 text-sogang-500" />
+            <button className="size-10 rounded-full bg-sogang-10 flex items-center justify-center transition active:scale-95">
+              <ShareIcon className="size-5 text-sogang-500" />
             </button>
-            <button className="w-8 h-8 rounded-full bg-sogang-50 flex items-center justify-center transition active:scale-95">
+            <button className="size-10 rounded-full bg-sogang-10 flex items-center justify-center transition active:scale-95">
               <Heart className="w-5 h-5 text-sogang-500" />
             </button>
           </div>
