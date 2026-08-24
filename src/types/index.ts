@@ -51,6 +51,7 @@ export interface Report {
   reporterType: ReporterType;
   reporterName?: string;
   building: Pick<Building, "id" | "name" | "address"> | null;
+  locationDescription: string | null;
   indoor: boolean | null;
   floor: string | null;
   room: string | null;

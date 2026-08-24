@@ -3,6 +3,7 @@ import type { Report, ReporterType } from "@/types";
 
 export interface LocationPatch {
   buildingId?: number;
+  locationDescription?: string;
   indoor?: boolean;
   floor?: string;
   room?: string;

@@ -4,6 +4,7 @@ import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-r
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { aiApi, reportApi } from "@/api";
+import type { ReportFlowAnswer, ReportQuestion, ReportQuestionSet } from "@/api";
 
 // 페이지 배경 (gray/10)
 const BG = "#fcfcfc";
@@ -11,13 +12,6 @@ const BG = "#fcfcfc";
 const SOGANG_RED = "#a92614";
 // 서강대 캠퍼스 중심
 const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
-
-// 맞춤 질문 (분석 결과 기반 · 최대 3개)
-const QUESTIONS = [
-  { q: "통행에 얼마나 방해가 되나요?", options: ["지나갈 수 있음", "우회해야 함", "통행 불가"] },
-  { q: "지금도 위험이 계속되고 있나요?", options: ["일시적이에요", "계속돼요", "점점 심해져요"] },
-  { q: "주변에 사람이 얼마나 다니나요?", options: ["거의 없음", "보통", "매우 붐벼요"] },
-];
 
 type Stage =
   | "photo"
@@ -111,13 +105,15 @@ export default function ReportFlowPage() {
   const [coords, setCoords] = useState(SOGANG_CENTER);
 
   // 맞춤 질문
+  const [questions, setQuestions] = useState<ReportQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [directActive, setDirectActive] = useState(false);
   const [directInput, setDirectInput] = useState("");
   const [pendingScroll, setPendingScroll] = useState<"top" | "bottom">("bottom");
-  const [answers, setAnswers] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<ReportFlowAnswer[]>([]);
 
-  // 제안서 문서 (제안자는 로그인 정보 기반 실명 고정)
+  // 신고서 문서 (신고자는 로그인 정보 기반 실명 고정)
+  const [draftSummary, setDraftSummary] = useState("");
   const [hazardContent, setHazardContent] = useState("");
   const [improvement, setImprovement] = useState("");
   const [editingSection, setEditingSection] = useState<
@@ -197,7 +193,7 @@ export default function ReportFlowPage() {
       addMsgs(
         { role: "photo" },
         { role: "user", text: memo.trim() },
-        { role: "ai", text: "보내주신 사진과 내용을 분석해 제안서를 생성할게요." },
+        { role: "ai", text: "보내주신 사진과 내용을 바탕으로 신고서를 작성할게요." },
         {
           role: "ai",
           text: "신고 위치가 어디인가요?\n건물은 정확한 명칭으로, 길·야외라면 가까운 건물을 기준으로 설명해 주세요.\n(예: 로욜라 도서관 2관)",
@@ -225,16 +221,22 @@ export default function ReportFlowPage() {
     setInput("");
   };
 
-  const startQuestions = () => {
+  const startQuestions = (questionSet: ReportQuestionSet) => {
+    if (questionSet.questions.length === 0) {
+      setApiError("추가 질문을 불러오지 못했습니다.");
+      return;
+    }
+    setQuestions(questionSet.questions);
+    setAnswers([]);
     setPendingScroll("top");
     addMsgs(
       {
         role: "ai",
-        text: "제안서를 쓰기 위한 질문 세 가지만 더 물어볼게요.",
-        emphasis: "질문 세 가지",
+        text: questionSet.introduction,
+        emphasis: "질문 세 가지만",
         topAnchor: true,
       },
-      { role: "ai", text: QUESTIONS[0].q },
+      { role: "ai", text: questionSet.questions[0].text },
     );
     setCurrentQ(0);
     setDirectActive(false);
@@ -250,22 +252,22 @@ export default function ReportFlowPage() {
       const candidates = await aiApi.analyzeLocation(coords.lat, coords.lng);
       const normalized = locationText.replace(/\s/g, "");
       const candidate =
-        candidates.find((item) => normalized.includes(item.name.replace(/\s/g, ""))) ??
-        candidates[0];
+        candidates.find((item) => normalized.includes(item.name.replace(/\s/g, "")));
       await reportApi.patchLocation(reportId, {
         buildingId: candidate?.buildingId,
+        locationDescription: locationText,
         lat: coords.lat,
         lng: coords.lng,
       });
+      const questionSet = await aiApi.getReportQuestions(reportId, memo.trim());
       addMsgs({
         role: "locationSaved",
-        label: candidate?.name ?? locationText,
+        label: locationText,
         lat: coords.lat,
         lng: coords.lng,
       });
-      if (candidate) setLocationText(candidate.name);
       setStage("afterLocation");
-      setTimeout(startQuestions, 900);
+      setTimeout(() => startQuestions(questionSet), 900);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "위치를 저장하지 못했습니다.");
     } finally {
@@ -273,41 +275,52 @@ export default function ReportFlowPage() {
     }
   };
 
-  const handleAnswer = (text: string) => {
+  const handleAnswer = async (text: string) => {
     const t = text.trim();
-    if (!t) return;
+    const question = questions[currentQ];
+    if (!t || !question || !reportId || submitting) return;
     setPendingScroll("bottom");
     addMsgs({ role: "user", text: t });
-    const nextAnswers = [...answers, t];
+    const nextAnswers = [
+      ...answers,
+      { questionId: question.id, question: question.text, answer: t },
+    ];
     setAnswers(nextAnswers);
     setDirectActive(false);
     setDirectInput("");
     const idx = currentQ;
-    if (idx < QUESTIONS.length - 1) {
+    if (idx < questions.length - 1) {
       setTimeout(() => {
         setPendingScroll("top");
-        addMsgs({ role: "ai", text: QUESTIONS[idx + 1].q, topAnchor: true });
+        addMsgs({ role: "ai", text: questions[idx + 1].text, topAnchor: true });
         setCurrentQ(idx + 1);
       }, 600);
     } else {
-      setTimeout(() => {
+      setSubmitting(true);
+      setApiError(null);
+      try {
+        const generated = await aiApi.createReportDraft(
+          reportId,
+          locationText,
+          memo.trim(),
+          nextAnswers,
+        );
         setPendingScroll("top");
         addMsgs({
           role: "ai",
-          text: "내용을 정리해 제안서를 작성했어요.\n실명(로그인 정보)으로 전송됩니다.",
+          text: "내용을 정리해 신고서를 작성했어요.\n실명(로그인 정보)으로 전송됩니다.",
           emphasis: "실명(로그인 정보)",
           topAnchor: true,
         });
-        const content = `${locationText}. ${memo.trim()} (통행 영향: ${nextAnswers[0] ?? "-"} / 위험 지속성: ${nextAnswers[1] ?? "-"} / 주변 통행량: ${nextAnswers[2] ?? "-"})`;
-        setHazardContent(content);
-        setImprovement("현장 점검 후 위험 요소 보수와 임시 안전표시 설치를 요청드립니다.");
-        if (reportId) {
-          void aiApi.analyzeContent(reportId, content).catch((error) => {
-            setApiError(error instanceof Error ? error.message : "AI 목 분석에 실패했습니다.");
-          });
-        }
-        setTimeout(() => setStage("proposal"), 700);
-      }, 600);
+        setDraftSummary(generated.summary);
+        setHazardContent(generated.hazardContent);
+        setImprovement(generated.improvementSuggestion);
+        setStage("proposal");
+      } catch (error) {
+        setApiError(error instanceof Error ? error.message : "신고서 목 생성에 실패했습니다.");
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -329,7 +342,7 @@ export default function ReportFlowPage() {
     setApiError(null);
     try {
       await reportApi.patch(reportId, {
-        summary: `${locationText} 안전 신고`,
+        summary: draftSummary || `${locationText} 안전 신고`,
         description: `${hazardContent}\n\n개선 제안 사항: ${improvement}`,
         reporterType: "REAL_NAME",
       });
@@ -371,7 +384,7 @@ export default function ReportFlowPage() {
               </button>
               <div className="bg-white/30 backdrop-blur-[20px] rounded-full h-[44px] px-4 flex items-center shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)]">
                 <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] whitespace-nowrap">
-                  제안서 전송
+                  신고서 전송
                 </span>
               </div>
             </div>
@@ -385,10 +398,10 @@ export default function ReportFlowPage() {
               {apiError}
             </p>
           )}
-          {/* 제안자 */}
+          {/* 신고자 */}
           <div className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">
-              제안자
+              신고자
             </span>
             <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
               {user?.name ?? "로그인 사용자"} (실명)
@@ -522,10 +535,9 @@ export default function ReportFlowPage() {
       >
         {/* AI 인사 */}
         <p className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4]">
-          안녕하세요! 위험한 곳을 발견했나요?
+          안녕하세요! 위험한 곳/수리가 필요한 곳을 발견했나요?
           <br />
-          <span className="font-bold">사진 한 장과 어떤 상황</span>
-          인지 함께 알려주세요.
+          <span className="font-bold">사진 한 장과 어떤 상황인지</span> 함께 알려주세요.
         </p>
 
         {apiError && (
@@ -728,20 +740,21 @@ export default function ReportFlowPage() {
         </div>
       )}
 
-      {stage === "question" && (
+      {stage === "question" && questions[currentQ] && (
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-2 flex flex-col">
             {/* 질문 */}
             <div className="px-5 pb-2">
               <p className="text-base font-medium text-[#262626] tracking-[-0.32px] leading-[1.4]">
-                {QUESTIONS[currentQ].q}
+                {questions[currentQ].text}
               </p>
             </div>
             {/* 선택지 */}
-            {QUESTIONS[currentQ].options.map((opt, i) => (
+            {questions[currentQ].options.map((opt, i) => (
               <button
                 key={i}
-                onClick={() => handleAnswer(opt)}
+                  onClick={() => void handleAnswer(opt)}
+                  disabled={submitting}
                 className="w-full flex items-center gap-4 px-5 py-3 border-b border-[#e9e9e9] transition active:bg-black/5"
               >
                 <span className="size-[34px] shrink-0 flex items-center justify-center bg-[#eeeeee] rounded-full text-base font-medium text-black">
@@ -753,6 +766,7 @@ export default function ReportFlowPage() {
               </button>
             ))}
             {/* 직접 입력 */}
+            {questions[currentQ].allowCustom && (
             <div className="w-full flex items-center gap-4 px-5 py-3">
               <span className="size-[34px] shrink-0 flex items-center justify-center bg-[#eeeeee] rounded-full">
                 <Pencil className="w-4 h-4 text-[#262626]" />
@@ -766,11 +780,12 @@ export default function ReportFlowPage() {
                     value={directInput}
                     onChange={(e) => setDirectInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAnswer(directInput);
+                      if (e.key === "Enter") void handleAnswer(directInput);
                     }}
                   />
                   <button
-                    onClick={() => handleAnswer(directInput)}
+                    onClick={() => void handleAnswer(directInput)}
+                    disabled={submitting}
                     className="rounded-full p-2 shrink-0 flex items-center justify-center transition active:scale-95 active:brightness-90"
                     style={{ backgroundColor: SOGANG_RED }}
                   >
@@ -782,10 +797,11 @@ export default function ReportFlowPage() {
                   onClick={() => setDirectActive(true)}
                   className="flex-1 text-left text-sm text-[#c4c4c4] tracking-[-0.28px] leading-[1.4]"
                 >
-                  답변을 입력하세요...
+                  직접 입력
                 </button>
               )}
             </div>
+            )}
           </div>
         </div>
       )}

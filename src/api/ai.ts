@@ -13,6 +13,30 @@ export interface TextDraft {
   description: string;
 }
 
+export interface ReportQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  allowCustom: boolean;
+}
+
+export interface ReportQuestionSet {
+  introduction: string;
+  questions: ReportQuestion[];
+}
+
+export interface ReportFlowAnswer {
+  questionId: string;
+  question: string;
+  answer: string;
+}
+
+export interface ReportFlowDraft {
+  summary: string;
+  hazardContent: string;
+  improvementSuggestion: string;
+}
+
 export const aiApi = {
   // ② GPS → 후보 건물
   analyzeLocation: (lat: number, lng: number) =>
@@ -25,4 +49,24 @@ export const aiApi = {
   // ③-a 자연어 → 보고서 초안
   draftFromText: (text: string) =>
     http.post<TextDraft>("/ai/draft-from-text", { text }),
+
+  // AI 서버 연동 전 신고 챗봇 Mock 계약
+  getReportQuestions: (reportId: number, incidentDescription: string) =>
+    http.post<ReportQuestionSet>("/ai/report-flow/questions", {
+      reportId,
+      incidentDescription,
+    }),
+
+  createReportDraft: (
+    reportId: number,
+    locationDescription: string,
+    incidentDescription: string,
+    answers: ReportFlowAnswer[],
+  ) =>
+    http.post<ReportFlowDraft>("/ai/report-flow/draft", {
+      reportId,
+      locationDescription,
+      incidentDescription,
+      answers,
+    }),
 };

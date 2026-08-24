@@ -33,7 +33,7 @@ interface PinItem {
 function toPin(report: Report, mineIds: Set<number>): PinItem {
   return {
     id: report.id,
-    title: report.building?.name ?? report.summary ?? "안전 신고",
+    title: report.locationDescription ?? report.building?.name ?? report.summary ?? "안전 신고",
     description: report.description ?? "상세 내용이 없습니다.",
     departmentName: report.department?.name ?? "담당 부서 배정 중",
     riskLevel: report.riskLevel ?? "MEDIUM",
@@ -42,7 +42,7 @@ function toPin(report: Report, mineIds: Set<number>): PinItem {
     date: new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" })
       .format(new Date(report.submittedAt ?? report.createdAt)),
     isMine: mineIds.has(report.id),
-    geoQuery: report.building?.name,
+    geoQuery: report.locationDescription ?? report.building?.name,
     latitude: report.lat ?? undefined,
     longitude: report.lng ?? undefined,
     imageUrl: report.photos[0]?.url,

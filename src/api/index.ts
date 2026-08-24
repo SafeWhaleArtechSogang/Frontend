@@ -7,7 +7,14 @@ export type { AuthResult, AdminAuthResult } from "./auth";
 export { reportApi } from "./reports";
 export type { LocationPatch } from "./reports";
 export { aiApi } from "./ai";
-export type { LocationSuggestion, TextDraft } from "./ai";
+export type {
+  LocationSuggestion,
+  TextDraft,
+  ReportQuestion,
+  ReportQuestionSet,
+  ReportFlowAnswer,
+  ReportFlowDraft,
+} from "./ai";
 export { meApi } from "./me";
 export { buildingApi } from "./buildings";
 export { adminApi } from "./admin";
