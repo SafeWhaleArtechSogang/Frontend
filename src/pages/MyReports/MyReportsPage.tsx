@@ -66,7 +66,7 @@ export default function MyReportsPage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-gray-10">
+    <div className="flex h-svh flex-col bg-gray-10">
       {/* 상단바 (297:4845) */}
       <div className="flex shrink-0 items-center justify-between px-2.5 pt-2">
         <button
@@ -86,7 +86,7 @@ export default function MyReportsPage() {
       </div>
 
       {selected ? (
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
           <ReportDetailView report={selected} />
         </div>
       ) : (
@@ -111,7 +111,7 @@ export default function MyReportsPage() {
           </div>
 
           {/* 신고 목록 (297:5035) */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {loading && <p className="py-20 text-center text-sm text-neutral-500">내 신고를 불러오는 중...</p>}
             {error && <p className="px-4 py-20 text-center text-sm text-sogang-500">{error}</p>}
             {!loading && !error && reports.length === 0 && (

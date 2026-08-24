@@ -391,7 +391,7 @@ export default function ReportFlowPage() {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
           {apiError && (
             <p className="rounded-[10px] bg-red-50 px-3 py-2 text-sm text-red-700">
               {apiError}
@@ -529,7 +529,7 @@ export default function ReportFlowPage() {
       {/* 대화 영역 */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
         style={{ paddingTop: headerHeight + 10, paddingBottom: dockHeight + 20 }}
       >
         {/* AI 인사 */}
