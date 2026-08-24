@@ -369,7 +369,7 @@ export default function ReportFlowPage() {
   // ─── 신고서 문서 화면 (채팅 아님) ───
   if (stage === "proposal") {
     return (
-      <div className="h-dvh w-full flex flex-col" style={{ backgroundColor: BG }}>
+      <div className="h-svh w-full flex flex-col" style={{ backgroundColor: BG }}>
         {/* 헤더 */}
         <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
           <div className="h-[44px]" />
@@ -503,7 +503,7 @@ export default function ReportFlowPage() {
 
   return (
     <div
-      className="h-dvh w-full flex flex-col relative"
+      className="h-svh w-full flex flex-col relative"
       style={{ backgroundColor: BG }}
     >
       {/* 헤더 (채팅 위 오버레이) */}

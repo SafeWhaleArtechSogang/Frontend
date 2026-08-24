@@ -299,7 +299,7 @@ export default function MapPage() {
   }, [kakaoMap, allPins]);
 
   return (
-    <div className="relative h-dvh flex flex-col">
+    <div className="relative h-svh flex flex-col">
       {/* Map */}
       <div ref={mapRef} className="flex-1 bg-bg-tertiary">
         {!mapLoaded && (
@@ -346,9 +346,9 @@ export default function MapPage() {
         }}
         style={{
           height: sheetFullscreen
-            ? "100dvh"
+            ? "100svh"
             : sheetExpanded
-              ? "50dvh"
+              ? "50svh"
               : `calc(${COLLAPSED_SHEET_HEIGHT}px + env(safe-area-inset-bottom))`,
         }}
       >
