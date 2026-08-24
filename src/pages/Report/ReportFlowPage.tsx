@@ -308,8 +308,7 @@ export default function ReportFlowPage() {
         setPendingScroll("top");
         addMsgs({
           role: "ai",
-          text: "내용을 정리해 신고서를 작성했어요.\n실명(로그인 정보)으로 전송됩니다.",
-          emphasis: "실명(로그인 정보)",
+          text: "내용을 정리해 신고서를 작성했어요.",
           topAnchor: true,
         });
         setDraftSummary(generated.summary);
@@ -367,7 +366,7 @@ export default function ReportFlowPage() {
     setStage("compose");
   };
 
-  // ─── 제안서 문서 화면 (채팅 아님) ───
+  // ─── 신고서 문서 화면 (채팅 아님) ───
   if (stage === "proposal") {
     return (
       <div className="h-dvh w-full flex flex-col" style={{ backgroundColor: BG }}>
@@ -404,7 +403,7 @@ export default function ReportFlowPage() {
               신고자
             </span>
             <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">
-              {user?.name ?? "로그인 사용자"} (실명)
+              {user?.name ?? "로그인 사용자"}
             </span>
           </div>
 
@@ -752,9 +751,9 @@ export default function ReportFlowPage() {
             {/* 선택지 */}
             {questions[currentQ].options.map((opt, i) => (
               <button
-                key={i}
-                  onClick={() => void handleAnswer(opt)}
-                  disabled={submitting}
+                key={opt}
+                onClick={() => void handleAnswer(opt)}
+                disabled={submitting}
                 className="w-full flex items-center gap-4 px-5 py-3 border-b border-[#e9e9e9] transition active:bg-black/5"
               >
                 <span className="size-[34px] shrink-0 flex items-center justify-center bg-[#eeeeee] rounded-full text-base font-medium text-black">
@@ -872,7 +871,7 @@ function AutoTextarea({
   );
 }
 
-// ─── 제안서 본문 (수정 가능 필드) ───
+// ─── 신고서 본문 (수정 가능 필드) ───
 function ProposalEditableField({
   label,
   value,
