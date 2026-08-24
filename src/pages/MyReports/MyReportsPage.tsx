@@ -66,27 +66,27 @@ export default function MyReportsPage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-gray-10">
+    <div className="flex h-svh flex-col bg-gray-10">
       {/* 상단바 (297:4845) */}
       <div className="flex shrink-0 items-center justify-between px-2.5 pt-2">
         <button
           type="button"
           aria-label="뒤로"
-          className="flex size-8 items-center justify-center transition active:scale-95"
+          className="flex size-9 items-center justify-center transition active:scale-95"
           onClick={() => (selected ? setSelected(null) : navigate("/map"))}
         >
           <ChevronLeft className="size-6 text-neutral-800" />
         </button>
         {!selected && (
           // TODO: 알림 화면 디자인이 나오면 연결 (GET /me/notifications)
-          <div className="flex size-8 items-center justify-center" aria-hidden="true">
+          <div className="flex size-9 items-center justify-center" aria-hidden="true">
             <Bell className="size-5 text-neutral-800" />
           </div>
         )}
       </div>
 
       {selected ? (
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
           <ReportDetailView report={selected} />
         </div>
       ) : (
@@ -111,7 +111,7 @@ export default function MyReportsPage() {
           </div>
 
           {/* 신고 목록 (297:5035) */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {loading && <p className="py-20 text-center text-sm text-neutral-500">내 신고를 불러오는 중...</p>}
             {error && <p className="px-4 py-20 text-center text-sm text-sogang-500">{error}</p>}
             {!loading && !error && reports.length === 0 && (

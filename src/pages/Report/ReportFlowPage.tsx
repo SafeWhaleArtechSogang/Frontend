@@ -5,6 +5,7 @@ import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-r
 import { useAuth } from "@/auth";
 import { aiApi, reportApi } from "@/api";
 import type { ReportFlowAnswer, ReportQuestion, ReportQuestionSet } from "@/api";
+import { IMPROVEMENT_MARKER } from "@/utils/reportDescription";
 
 // 페이지 배경 (gray/10)
 const BG = "#fcfcfc";
@@ -342,7 +343,7 @@ export default function ReportFlowPage() {
     try {
       await reportApi.patch(reportId, {
         summary: draftSummary || `${locationText} 안전 신고`,
-        description: `${hazardContent}\n\n개선 제안 사항: ${improvement}`,
+        description: `${hazardContent}${IMPROVEMENT_MARKER}${improvement}`,
         reporterType: "REAL_NAME",
       });
       await reportApi.generateReportFile(reportId);
@@ -369,7 +370,7 @@ export default function ReportFlowPage() {
   // ─── 신고서 문서 화면 (채팅 아님) ───
   if (stage === "proposal") {
     return (
-      <div className="h-dvh w-full flex flex-col" style={{ backgroundColor: BG }}>
+      <div className="h-svh w-full flex flex-col" style={{ backgroundColor: BG }}>
         {/* 헤더 */}
         <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
           <div className="h-[44px]" />
@@ -391,7 +392,7 @@ export default function ReportFlowPage() {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
           {apiError && (
             <p className="rounded-[10px] bg-red-50 px-3 py-2 text-sm text-red-700">
               {apiError}
@@ -503,7 +504,7 @@ export default function ReportFlowPage() {
 
   return (
     <div
-      className="h-dvh w-full flex flex-col relative"
+      className="h-svh w-full flex flex-col relative"
       style={{ backgroundColor: BG }}
     >
       {/* 헤더 (채팅 위 오버레이) */}
@@ -529,7 +530,7 @@ export default function ReportFlowPage() {
       {/* 대화 영역 */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
         style={{ paddingTop: headerHeight + 10, paddingBottom: dockHeight + 20 }}
       >
         {/* AI 인사 */}
