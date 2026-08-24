@@ -149,8 +149,8 @@ export default function MapPage() {
         setSheetExpanded(false);
       }
     } else if (deltaY < -threshold) {
-      // Swipe up — 펼침 상태에서 한 번 더 올리면 전체 화면
-      if (sheetExpanded && !sheetFullscreen) {
+      // Swipe up — 핀 상세를 보는 중일 때만 전체 화면으로 확장한다
+      if (selectedPin && sheetExpanded && !sheetFullscreen) {
         setSheetFullscreen(true);
       } else {
         setSheetExpanded(true);
@@ -309,19 +309,17 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* 신고 버튼 (바텀시트 위) */}
-      <button
-        className="absolute right-4 z-40 flex items-center gap-1 bg-neutral-800 rounded-full pl-2.5 pr-3 py-2.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.2)] transition active:brightness-90"
-        style={{
-          bottom: sheetFullscreen
-            ? "calc(54px + env(safe-area-inset-bottom))"
-            : `${sheetHeight + 15}px`,
-        }}
-        onClick={handleReportStart}
-      >
-        <Plus className="w-5 h-5 text-white" />
-        <span className="text-[15px] font-medium leading-5 text-[#f5f5f5] tracking-[-0.375px]">신고</span>
-      </button>
+      {/* 신고 버튼 (바텀시트 위) — 전체화면 상세에서는 가린다 */}
+      {!sheetFullscreen && (
+        <button
+          className="absolute right-4 z-40 flex items-center gap-1 bg-neutral-800 rounded-full pl-2.5 pr-3 py-2.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.2)] transition active:brightness-90"
+          style={{ bottom: `${sheetHeight + 15}px` }}
+          onClick={handleReportStart}
+        >
+          <Plus className="w-5 h-5 text-white" />
+          <span className="text-[15px] font-medium leading-5 text-[#f5f5f5] tracking-[-0.375px]">신고</span>
+        </button>
+      )}
       {showListButton && (
         <div className="absolute left-1/2 -translate-x-1/2 z-20" style={{ bottom: `${sheetHeight + 16}px` }}>
           <button
@@ -354,28 +352,19 @@ export default function MapPage() {
               : `calc(${COLLAPSED_SHEET_HEIGHT}px + env(safe-area-inset-bottom))`,
         }}
       >
-        {/* Handle — 핀 상세 전체화면에서는 접기 버튼을 쓰므로 숨김.
-            리스트 전체화면에서는 디자인상 핸들이 없어 바만 감추고 드래그 영역은 남긴다. */}
-        {!(sheetFullscreen && selectedPin) && (
+        {/* Handle — 전체화면(핀 상세)에서는 접기 버튼을 쓰므로 숨긴다 */}
+        {!sheetFullscreen && (
           <div
-            className={`w-full flex cursor-pointer touch-none shrink-0 ${
-              sheetFullscreen ? "justify-start px-4 pb-1" : "justify-center pt-2.5 pb-2"
-            }`}
-            style={sheetFullscreen ? { paddingTop: "calc(16px + env(safe-area-inset-top))" } : undefined}
+            className="w-full flex justify-center cursor-pointer touch-none shrink-0 pt-2.5 pb-2"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={() => {
-              if (sheetFullscreen) { setSheetFullscreen(false); return; }
               if (selectedPin && sheetExpanded) { setSheetFullscreen(true); return; }
               if (selectedPin) { setSelectedPin(null); return; }
               setSheetExpanded(!sheetExpanded);
             }}
           >
-            {sheetFullscreen ? (
-              <SheetCloseButton onClick={() => setSheetFullscreen(false)} />
-            ) : (
-              <div className="w-[50px] h-[3px] bg-neutral-300 rounded-full" />
-            )}
+            <div className="w-[50px] h-[3px] bg-neutral-300 rounded-full" />
           </div>
         )}
 
@@ -491,7 +480,7 @@ export default function MapPage() {
                     title={pin.title}
                     description={pin.description}
                     isMine={pin.isMine}
-                    onClick={() => { setSelectedPin(pin); setSheetFullscreen(false); }}
+                    onClick={() => setSelectedPin(pin)}
                   />
                 ))}
               </div>
