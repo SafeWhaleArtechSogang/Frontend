@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, List, ChevronRight, ChevronDown, X, Share, Heart, UserRound } from "lucide-react";
+import { Plus, List, X, Share, Heart } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { reportApi } from "@/api";
-import RiskBadge from "@/components/common/RiskBadge";
+import DepartmentChip from "@/components/common/DepartmentChip";
 import MyBadge from "@/components/common/MyBadge";
+import ReportDetailView from "@/components/report/ReportDetailView";
+import FilterChip from "@/components/map/FilterChip";
+import SafetyPinRow from "@/components/map/SafetyPinRow";
+import SheetCloseButton from "@/components/map/SheetCloseButton";
+import SheetProfile from "@/components/map/SheetProfile";
 import type { Report } from "@/types";
 import type { RiskLevel, ReportStatus } from "@/types";
 
@@ -64,6 +69,9 @@ interface SearchResult {
 
 // 서강대학교 캠퍼스 중심 좌표
 const SOGANG_CENTER = { lat: 37.5510, lng: 126.9408 };
+
+// 접힘 상태 높이(px) — 핸들 21 + 프로필 블록(pt 6 + 프로필 60 + pb 16) + 여백 29
+const COLLAPSED_SHEET_HEIGHT = 132;
 
 export default function MapPage() {
   const navigate = useNavigate();
@@ -141,8 +149,8 @@ export default function MapPage() {
         setSheetExpanded(false);
       }
     } else if (deltaY < -threshold) {
-      // Swipe up
-      if (selectedPin && sheetExpanded && !sheetFullscreen) {
+      // Swipe up — 펼침 상태에서 한 번 더 올리면 전체 화면
+      if (sheetExpanded && !sheetFullscreen) {
         setSheetFullscreen(true);
       } else {
         setSheetExpanded(true);
@@ -295,18 +303,27 @@ export default function MapPage() {
 
       {/* 신고 버튼 (바텀시트 위) */}
       <button
-        className="absolute right-4 z-20 flex items-center gap-1 bg-[#262626] rounded-full pl-2.5 pr-3 py-2 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.2)] transition active:brightness-90"
-        style={{ bottom: `${sheetHeight + 15}px` }}
+        className="absolute right-4 z-40 flex items-center gap-1 bg-neutral-800 rounded-full pl-2.5 pr-3 py-2.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.2)] transition active:brightness-90"
+        style={{
+          bottom: sheetFullscreen
+            ? "calc(54px + env(safe-area-inset-bottom))"
+            : `${sheetHeight + 15}px`,
+        }}
         onClick={handleReportStart}
       >
         <Plus className="w-5 h-5 text-white" />
-        <span className="text-[15px] font-medium text-white tracking-[-0.375px]">신고</span>
+        <span className="text-[15px] font-medium leading-5 text-[#f5f5f5] tracking-[-0.375px]">신고</span>
       </button>
       {showListButton && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-20" style={{ bottom: `${sheetHeight + 15}px` }}>
-          <button className="flex items-center gap-[5px] px-3 py-1.5 bg-white rounded-full shadow-[0px_4px_20px_0px_rgba(0,0,0,0.15)]" onClick={() => setSheetExpanded(true)}>
-            <List className="w-5 h-5 text-[#262626]" />
-            <span className="text-sm font-medium text-[#262626] tracking-[-0.35px] whitespace-nowrap">안전핀 리스트</span>
+        <div className="absolute left-1/2 -translate-x-1/2 z-20" style={{ bottom: `${sheetHeight + 16}px` }}>
+          <button
+            className="flex items-center gap-1 rounded-full bg-gray-10 px-4 py-2.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.2)] transition active:brightness-95"
+            onClick={() => setSheetExpanded(true)}
+          >
+            <List className="size-5 text-neutral-800" />
+            <span className="whitespace-nowrap text-[15px] font-medium leading-5 tracking-[-0.375px] text-neutral-800">
+              안전핀 리스트
+            </span>
           </button>
         </div>
       )}
@@ -314,7 +331,7 @@ export default function MapPage() {
       {/* ─── Bottom Sheet ─── */}
       <div
         ref={sheetRef}
-        className={`absolute bottom-0 left-0 right-0 z-30 bg-[#fcfcfc] shadow-[0px_-4px_20px_0px_rgba(0,0,0,0.25)] transition-all duration-300 overflow-hidden flex flex-col ${sheetFullscreen ? "rounded-none" : "rounded-t-[10px]"}`}
+        className={`absolute bottom-0 left-0 right-0 z-30 bg-[#fcfcfc] shadow-[0px_-4px_20px_0px_rgba(0,0,0,0.25)] transition-all duration-300 overflow-hidden flex flex-col ${sheetFullscreen ? "rounded-none" : "rounded-t-[20px]"}`}
         onTransitionEnd={(e) => {
           // 시트가 완전히 내려온 뒤에만 리스트 버튼 표시
           if (e.target === e.currentTarget && !sheetExpanded && !sheetFullscreen) {
@@ -326,22 +343,31 @@ export default function MapPage() {
             ? "100dvh"
             : sheetExpanded
               ? "50dvh"
-              : "15dvh",
+              : `calc(${COLLAPSED_SHEET_HEIGHT}px + env(safe-area-inset-bottom))`,
         }}
       >
-        {/* Handle (전체화면에서는 숨김 → 접기 버튼 사용) */}
-        {!sheetFullscreen && (
+        {/* Handle — 핀 상세 전체화면에서는 접기 버튼을 쓰므로 숨김.
+            리스트 전체화면에서는 디자인상 핸들이 없어 바만 감추고 드래그 영역은 남긴다. */}
+        {!(sheetFullscreen && selectedPin) && (
           <div
-            className="w-full flex justify-center py-4 cursor-pointer touch-none shrink-0"
+            className={`w-full flex cursor-pointer touch-none shrink-0 ${
+              sheetFullscreen ? "justify-start px-4 pb-1" : "justify-center pt-2.5 pb-2"
+            }`}
+            style={sheetFullscreen ? { paddingTop: "calc(16px + env(safe-area-inset-top))" } : undefined}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={() => {
+              if (sheetFullscreen) { setSheetFullscreen(false); return; }
               if (selectedPin && sheetExpanded) { setSheetFullscreen(true); return; }
               if (selectedPin) { setSelectedPin(null); return; }
               setSheetExpanded(!sheetExpanded);
             }}
           >
-            <div className="w-14 h-[5px] bg-[#D9D9D9] rounded-full" />
+            {sheetFullscreen ? (
+              <SheetCloseButton onClick={() => setSheetFullscreen(false)} />
+            ) : (
+              <div className="w-[50px] h-[3px] bg-neutral-300 rounded-full" />
+            )}
           </div>
         )}
 
@@ -351,63 +377,12 @@ export default function MapPage() {
             // ─── Fullscreen Detail (155:1413) ───
             <div className="flex-1 overflow-y-auto scrollbar-hide relative">
               {/* 접기 버튼 */}
-              <button
-                className="absolute top-4 left-4 z-10 w-8 h-8 bg-[#f5f5f5] rounded-full flex items-center justify-center transition active:scale-95"
+              <SheetCloseButton
+                className="absolute top-4 left-4 z-10"
                 onClick={() => setSheetFullscreen(false)}
-              >
-                <ChevronDown className="w-5 h-5 text-[#262626]" />
-              </button>
+              />
 
-              {/* 사진 */}
-              <div className="px-1.5 pt-1.5">
-                <div className="w-full aspect-square bg-[#F5F5F5] rounded-[10px] overflow-hidden">
-                  {selectedPin.imageUrl && <img src={selectedPin.imageUrl} alt="신고 사진" className="w-full h-full object-cover" />}
-                </div>
-              </div>
-
-              {/* 정보 */}
-              <div className="px-4 pt-5 pb-12 flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-8 px-2.5 flex items-center bg-[#e9e9e9] rounded-full text-sm font-medium text-[#7b7b7b] tracking-[-0.35px]">
-                      {selectedPin.departmentName}
-                    </span>
-                    {selectedPin.isMine && <MyBadge />}
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
-                      <Share className="w-5 h-5 text-[#a92614]" />
-                    </button>
-                    <button className="w-8 h-8 rounded-full bg-[#f5e5e3] flex items-center justify-center transition active:scale-95">
-                      <Heart className="w-5 h-5 text-[#a92614]" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <h3 className="flex-1 text-[17px] font-bold text-[#1d1d1f] tracking-[-0.425px] leading-[1.4]">
-                    {selectedPin.title}
-                  </h3>
-                  <span className="text-[11px] font-medium text-[#7a7a7a] tracking-[-0.275px] whitespace-nowrap shrink-0">
-                    {selectedPin.date}
-                  </span>
-                </div>
-
-                <div className="flex flex-col gap-5 mt-1">
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">위험장소</span>
-                    <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">{selectedPin.title}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">안전·보건 유해/위험/시설/장소 내용</span>
-                    <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">{selectedPin.description}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-[#9d9d9d] tracking-[-0.28px]">개선 제안 사항</span>
-                    <span className="text-sm font-medium text-[#262626] tracking-[-0.28px] leading-[1.4]">현장 점검 후 위험 요소 보수 및 임시 안전표시 설치를 요청합니다.</span>
-                  </div>
-                </div>
-              </div>
+              <ReportDetailView report={selectedPin} showMyBadge={selectedPin.isMine} />
             </div>
           ) : (
             // ─── Compact Detail (155:1372) ───
@@ -418,9 +393,7 @@ export default function MapPage() {
               {/* 헤더: 부서·My | 공유·공감·닫기 */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="h-8 px-2.5 flex items-center bg-[#e9e9e9] rounded-full text-sm font-medium text-[#7b7b7b] tracking-[-0.35px]">
-                    {selectedPin.departmentName}
-                  </span>
+                  <DepartmentChip label={selectedPin.departmentName} />
                   {selectedPin.isMine && <MyBadge />}
                 </div>
                 <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
@@ -463,52 +436,39 @@ export default function MapPage() {
         ) : (
           // ─── Pin List View ───
           <>
-            {/* Profile (red card) */}
-            <div className="px-4 pt-1 shrink-0">
-              <button
-                className="w-full bg-[#a92614] rounded-[10px] p-2 flex items-center gap-2.5 text-left transition active:brightness-95"
+            {/* Profile + Filter (289:3930) */}
+            <div
+              className={`shrink-0 flex flex-col gap-5 px-4 pb-4 pt-1.5 ${
+                sheetExpanded ? "border-b border-gray-200" : ""
+              }`}
+            >
+              <SheetProfile
+                name={user?.name ?? "로그인해 주세요"}
+                detail={
+                  [user?.major, user?.studentNo].filter(Boolean).join(" · ") ||
+                  (isLoggedIn ? "프로필 정보 미등록" : "내 신고를 확인할 수 있어요")
+                }
                 onClick={() => navigate(isLoggedIn ? "/my-reports" : "/login", isLoggedIn ? undefined : { state: { from: "/my-reports" } })}
-              >
-                <div className="w-12 h-12 rounded-[6px] bg-white/20 shrink-0 flex items-center justify-center">
-                  <UserRound className="w-6 h-6 text-white/90" />
+              />
+              {sheetExpanded && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                  {FILTER_TABS.map((tab) => (
+                    <FilterChip
+                      key={tab.id}
+                      label={tab.label}
+                      selected={activeFilter === tab.id}
+                      onClick={() => {
+                        if (tab.id === "mine" && !isLoggedIn) {
+                          navigate("/login", { state: { from: "/map" } });
+                          return;
+                        }
+                        setActiveFilter(tab.id);
+                      }}
+                    />
+                  ))}
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  <span className="text-base font-semibold text-[#f5f5f5] tracking-[-0.4px] leading-[1.48]">
-                    {user?.name ?? "로그인해 주세요"}
-                  </span>
-                  <span className="text-xs font-medium text-[#e9e9e9] tracking-[-0.3px] leading-[1.48]">
-                    {user?.studentNo ?? "내 신고를 확인할 수 있어요"}
-                  </span>
-                </div>
-                <span className="shrink-0 flex items-center gap-0.5 border border-white/40 rounded-full pl-2.5 pr-1.5 py-1 text-xs font-semibold text-white tracking-[-0.3px] whitespace-nowrap">
-                  내 프로필
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </span>
-              </button>
+              )}
             </div>
-            {sheetExpanded && (
-              <div className="flex gap-2 px-4 pb-2.5 pt-2.5 overflow-x-auto scrollbar-hide shrink-0">
-                {FILTER_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    className={`shrink-0 px-2.5 py-1 rounded-full border text-xs tracking-[-0.3px] whitespace-nowrap bg-white transition-colors ${
-                      activeFilter === tab.id
-                        ? "border-[#902011] font-semibold text-[#761b0e]"
-                        : "border-[#dcdcdc] font-medium text-[#a2a3a3]"
-                    }`}
-                    onClick={() => {
-                      if (tab.id === "mine" && !isLoggedIn) {
-                        navigate("/login", { state: { from: "/map" } });
-                        return;
-                      }
-                      setActiveFilter(tab.id);
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            )}
             {sheetExpanded && (
               <div className="overflow-y-auto flex-1">
                 {pinsLoading && <p className="px-4 py-6 text-sm text-[#7B7B7B] text-center">신고를 불러오는 중...</p>}
@@ -517,27 +477,14 @@ export default function MapPage() {
                   <p className="px-4 py-6 text-sm text-[#7B7B7B] text-center">표시할 신고가 없습니다.</p>
                 )}
                 {allPins.map((pin) => (
-                  <button
+                  <SafetyPinRow
                     key={pin.id}
-                    className="w-full h-[74px] px-4 flex items-center gap-2.5 border-b border-[#E9E9E9] text-left"
+                    riskLevel={pin.riskLevel}
+                    title={pin.title}
+                    description={pin.description}
+                    isMine={pin.isMine}
                     onClick={() => { setSelectedPin(pin); setSheetFullscreen(false); }}
-                  >
-                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <RiskBadge level={pin.riskLevel} className="shrink-0" />
-                        <h4 className="text-base font-semibold text-[#1d1d1f] tracking-[-0.4px] truncate leading-[1.48]">
-                          {pin.title}
-                        </h4>
-                      </div>
-                      <p className="text-xs font-medium text-[#7B7B7B] tracking-[-0.3px] leading-[1.48] truncate">
-                        {pin.description}
-                      </p>
-                    </div>
-                    {pin.isMine && (
-                      <MyBadge size={30} />
-                    )}
-                    <ChevronRight className="w-6 h-6 text-[#C4C4C4] shrink-0" />
-                  </button>
+                  />
                 ))}
               </div>
             )}

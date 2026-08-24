@@ -83,13 +83,3 @@ export const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
   RESOLVED: "처리완료",
 };
 
-export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
-  HIGH: "높음",
-  MEDIUM: "중간",
-  LOW: "낮음",
-};
-
-export const REPORTER_TYPE_LABEL: Record<ReporterType, string> = {
-  ANONYMOUS: "익명",
-  REAL_NAME: "실명",
-};
