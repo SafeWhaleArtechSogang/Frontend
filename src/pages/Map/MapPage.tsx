@@ -372,15 +372,16 @@ export default function MapPage() {
           // ─── Pin Detail View ───
           sheetFullscreen ? (
             // ─── Fullscreen Detail (155:1413) ───
-            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide relative">
-              {/* 접기 버튼 */}
+            <>
+              {/* 접기 버튼 — 스크롤과 무관하게 시트 좌측 상단에 고정 */}
               <SheetCloseButton
-                className="absolute top-4 left-4 z-10"
+                className="absolute top-4 left-4 z-10 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.15)]"
                 onClick={() => setSheetFullscreen(false)}
               />
-
-              <ReportDetailView report={selectedPin} showMyBadge={selectedPin.isMine} />
-            </div>
+              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+                <ReportDetailView report={selectedPin} showMyBadge={selectedPin.isMine} />
+              </div>
+            </>
           ) : (
             // ─── Compact Detail (155:1372) ───
             <div
