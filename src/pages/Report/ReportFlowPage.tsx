@@ -4,7 +4,7 @@ import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-r
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { aiApi, reportApi } from "@/api";
-import type { ReportFlowAnswer, ReportQuestion, ReportQuestionSet } from "@/api";
+import type { ReportFlowAnswer, ReportQuestionStep } from "@/api";
 import { IMPROVEMENT_MARKER } from "@/utils/reportDescription";
 
 // 페이지 배경 (gray/10)
@@ -105,9 +105,8 @@ export default function ReportFlowPage() {
   const [editingLoc, setEditingLoc] = useState(false);
   const [coords, setCoords] = useState(SOGANG_CENTER);
 
-  // 맞춤 질문
-  const [questions, setQuestions] = useState<ReportQuestion[]>([]);
-  const [currentQ, setCurrentQ] = useState(0);
+  // 맞춤 질문 — 한 번에 하나씩 받아오고, 답변은 다음 질문의 컨텍스트가 된다.
+  const [step, setStep] = useState<ReportQuestionStep | null>(null);
   const [directActive, setDirectActive] = useState(false);
   const [directInput, setDirectInput] = useState("");
   const [pendingScroll, setPendingScroll] = useState<"top" | "bottom">("bottom");
@@ -222,24 +221,23 @@ export default function ReportFlowPage() {
     setInput("");
   };
 
-  const startQuestions = (questionSet: ReportQuestionSet) => {
-    if (questionSet.questions.length === 0) {
-      setApiError("추가 질문을 불러오지 못했습니다.");
-      return;
-    }
-    setQuestions(questionSet.questions);
+  const startQuestions = (firstStep: ReportQuestionStep) => {
+    setStep(firstStep);
     setAnswers([]);
     setPendingScroll("top");
     addMsgs(
-      {
-        role: "ai",
-        text: questionSet.introduction,
-        emphasis: "질문 세 가지만",
-        topAnchor: true,
-      },
-      { role: "ai", text: questionSet.questions[0].text },
+      ...(firstStep.introduction
+        ? ([
+            {
+              role: "ai",
+              text: firstStep.introduction,
+              emphasis: "질문 세 가지만",
+              topAnchor: true,
+            },
+          ] as MsgInput[])
+        : []),
+      { role: "ai", text: firstStep.question.text },
     );
-    setCurrentQ(0);
     setDirectActive(false);
     setDirectInput("");
     setStage("question");
@@ -260,7 +258,7 @@ export default function ReportFlowPage() {
         lat: coords.lat,
         lng: coords.lng,
       });
-      const questionSet = await aiApi.getReportQuestions(reportId, memo.trim());
+      const firstStep = await aiApi.getNextReportQuestion(reportId, memo.trim(), []);
       addMsgs({
         role: "locationSaved",
         label: locationText,
@@ -268,7 +266,7 @@ export default function ReportFlowPage() {
         lng: coords.lng,
       });
       setStage("afterLocation");
-      setTimeout(() => startQuestions(questionSet), 900);
+      setTimeout(() => startQuestions(firstStep), 900);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "위치를 저장하지 못했습니다.");
     } finally {
@@ -278,49 +276,53 @@ export default function ReportFlowPage() {
 
   const handleAnswer = async (text: string) => {
     const t = text.trim();
-    const question = questions[currentQ];
-    if (!t || !question || !reportId || submitting) return;
+    const current = step;
+    if (!t || !current || !reportId || submitting) return;
     setPendingScroll("bottom");
     addMsgs({ role: "user", text: t });
     const nextAnswers = [
       ...answers,
-      { questionId: question.id, question: question.text, answer: t },
+      { questionId: current.question.id, question: current.question.text, answer: t },
     ];
     setAnswers(nextAnswers);
     setDirectActive(false);
     setDirectInput("");
-    const idx = currentQ;
-    if (idx < questions.length - 1) {
-      setTimeout(() => {
-        setPendingScroll("top");
-        addMsgs({ role: "ai", text: questions[idx + 1].text, topAnchor: true });
-        setCurrentQ(idx + 1);
-      }, 600);
-    } else {
-      setSubmitting(true);
-      setApiError(null);
-      try {
-        const generated = await aiApi.createReportDraft(
+
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      if (!current.last) {
+        // 방금 받은 답변까지 넘겨 다음 질문을 만든다.
+        const nextStep = await aiApi.getNextReportQuestion(
           reportId,
-          locationText,
           memo.trim(),
           nextAnswers,
         );
         setPendingScroll("top");
-        addMsgs({
-          role: "ai",
-          text: "내용을 정리해 신고서를 작성했어요.",
-          topAnchor: true,
-        });
-        setDraftSummary(generated.summary);
-        setHazardContent(generated.hazardContent);
-        setImprovement(generated.improvementSuggestion);
-        setStage("proposal");
-      } catch (error) {
-        setApiError(error instanceof Error ? error.message : "신고서 목 생성에 실패했습니다.");
-      } finally {
-        setSubmitting(false);
+        addMsgs({ role: "ai", text: nextStep.question.text, topAnchor: true });
+        setStep(nextStep);
+        return;
       }
+      const generated = await aiApi.createReportDraft(
+        reportId,
+        locationText,
+        memo.trim(),
+        nextAnswers,
+      );
+      setPendingScroll("top");
+      addMsgs({
+        role: "ai",
+        text: "내용을 정리해 신고서를 작성했어요.",
+        topAnchor: true,
+      });
+      setDraftSummary(generated.summary);
+      setHazardContent(generated.hazardContent);
+      setImprovement(generated.improvementSuggestion);
+      setStage("proposal");
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "신고서를 생성하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -740,17 +742,25 @@ export default function ReportFlowPage() {
         </div>
       )}
 
-      {stage === "question" && questions[currentQ] && (
+      {stage === "question" && step && (
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] pt-5 pb-2 flex flex-col">
             {/* 질문 */}
             <div className="px-5 pb-2">
               <p className="text-base font-medium text-[#262626] tracking-[-0.32px] leading-[1.4]">
-                {questions[currentQ].text}
+                {step.question.text}
               </p>
+              {/* AI 호출이 몇 초 걸려 비어 보이지 않게 진행 상태를 남긴다 */}
+              {submitting && (
+                <p className="pt-2 text-sm text-[#9d9d9d] tracking-[-0.28px]">
+                  {step.last
+                    ? "신고서를 작성하고 있어요..."
+                    : "다음 질문을 준비하고 있어요..."}
+                </p>
+              )}
             </div>
             {/* 선택지 */}
-            {questions[currentQ].options.map((opt, i) => (
+            {step.question.options.map((opt, i) => (
               <button
                 key={opt}
                 onClick={() => void handleAnswer(opt)}
@@ -766,7 +776,7 @@ export default function ReportFlowPage() {
               </button>
             ))}
             {/* 직접 입력 */}
-            {questions[currentQ].allowCustom && (
+            {step.question.allowCustom && (
             <div className="w-full flex items-center gap-4 px-5 py-3">
               <span className="size-[34px] shrink-0 flex items-center justify-center bg-[#eeeeee] rounded-full">
                 <Pencil className="w-4 h-4 text-[#262626]" />

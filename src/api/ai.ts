@@ -20,9 +20,14 @@ export interface ReportQuestion {
   allowCustom: boolean;
 }
 
-export interface ReportQuestionSet {
-  introduction: string;
-  questions: ReportQuestion[];
+/** 확인 질문 한 개. 답변을 보낼 때마다 다음 질문을 받아온다. */
+export interface ReportQuestionStep {
+  /** 첫 질문에만 채워진다 */
+  introduction: string | null;
+  question: ReportQuestion;
+  questionIndex: number;
+  questionCount: number;
+  last: boolean;
 }
 
 export interface ReportFlowAnswer {
@@ -50,11 +55,17 @@ export const aiApi = {
   draftFromText: (text: string) =>
     http.post<TextDraft>("/ai/draft-from-text", { text }),
 
-  // AI 서버 연동 전 신고 챗봇 Mock 계약
-  getReportQuestions: (reportId: number, incidentDescription: string) =>
-    http.post<ReportQuestionSet>("/ai/report-flow/questions", {
+  // 확인 질문을 하나씩 받아온다. 지금까지의 질문·답변을 함께 보내면
+  // AI가 그 내용을 반영해 아직 확인되지 않은 것을 묻는다.
+  getNextReportQuestion: (
+    reportId: number,
+    incidentDescription: string,
+    answers: ReportFlowAnswer[],
+  ) =>
+    http.post<ReportQuestionStep>("/ai/report-flow/next-question", {
       reportId,
       incidentDescription,
+      answers,
     }),
 
   createReportDraft: (

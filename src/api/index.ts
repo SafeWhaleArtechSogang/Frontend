@@ -11,7 +11,7 @@ export type {
   LocationSuggestion,
   TextDraft,
   ReportQuestion,
-  ReportQuestionSet,
+  ReportQuestionStep,
   ReportFlowAnswer,
   ReportFlowDraft,
 } from "./ai";
