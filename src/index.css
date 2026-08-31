@@ -74,6 +74,9 @@
   --color-gray-400: #cfd0d0;
   --color-gray-900: #393a3a;
 
+  /* Admin status badge */
+  --color-warning-10: #ffefe0;
+
   /* Risk level (bottomsheet 289:3554) */
   --color-risk-high: #a92614;
   --color-risk-medium: #ff7d14;
@@ -110,11 +113,14 @@ body {
 }
 
 #root {
+  min-height: 100dvh;
+  background-color: var(--color-bg-primary);
+}
+
+/* 모바일 앱 화면 전용 폭 제한. 관리자 대시보드는 이 클래스를 쓰지 않고 전체 폭을 쓴다 */
+.app-shell {
   max-width: 430px;
   margin: 0 auto;
-  min-height: 100dvh;
-  position: relative;
-  background-color: var(--color-bg-primary);
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
 }
 
