@@ -89,7 +89,7 @@ export default function AdminReportDetailPage() {
 
   const downloadReportFile = useCallback(async () => {
     try {
-      const { url } = await adminApi.reportFile(reportId);
+      const { url } = await adminApi.generateReportFile(reportId);
       window.open(url, "_blank", "noopener");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "신고서를 내려받지 못했습니다.");

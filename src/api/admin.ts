@@ -47,6 +47,9 @@ export const adminApi = {
   reportFile: (id: number) =>
     http.get<{ url: string }>(`/admin/reports/${id}/report-file`),
 
+  generateReportFile: (id: number) =>
+    http.post<{ url: string }>(`/admin/reports/${id}/report-file`),
+
   changeStatus: (id: number, status: ReportStatus) =>
     http.patch<Report>(`/admin/reports/${id}/status`, { status }),
 
