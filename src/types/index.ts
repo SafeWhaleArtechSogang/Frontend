@@ -13,8 +13,8 @@ export interface Building {
   id: number;
   name: string;
   code?: string;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   address?: string;
 }
 

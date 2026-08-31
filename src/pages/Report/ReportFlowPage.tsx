@@ -245,7 +245,7 @@ export default function ReportFlowPage() {
       const fullLocation = selectedBuilding ? `${selectedBuilding.name} ${t}` : t;
       setLocationQuery(fullLocation);
       setLocationText(fullLocation);
-      if (selectedBuilding) {
+      if (selectedBuilding?.lat != null && selectedBuilding.lng != null) {
         setCoords({ lat: selectedBuilding.lat, lng: selectedBuilding.lng });
       }
       setStage("locationConfirm");
