@@ -14,6 +14,7 @@ const BG = "#fcfcfc";
 const SOGANG_RED = "#a92614";
 // 서강대 캠퍼스 중심
 const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
+const OTHER_LOCATION_VALUE = "__OTHER_LOCATION__";
 
 type Stage =
   | "photo"
@@ -731,9 +732,14 @@ export default function ReportFlowPage() {
             </p>
             <select
               className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
-              value={selectedBuilding?.id ?? ""}
+              value={isOtherLocation ? OTHER_LOCATION_VALUE : selectedBuilding?.id ?? ""}
               disabled={buildingsLoading}
               onChange={(e) => {
+                if (e.target.value === OTHER_LOCATION_VALUE) {
+                  setSelectedBuilding(null);
+                  setIsOtherLocation(true);
+                  return;
+                }
                 const building = buildings.find((item) => item.id === Number(e.target.value)) ?? null;
                 setSelectedBuilding(building);
                 setIsOtherLocation(false);
@@ -747,21 +753,8 @@ export default function ReportFlowPage() {
                   {building.name}
                 </option>
               ))}
+              <option value={OTHER_LOCATION_VALUE}>기타 (건물이 아닌 위치)</option>
             </select>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedBuilding(null);
-                setIsOtherLocation(true);
-              }}
-              className={`h-11 rounded-[10px] border text-sm font-medium transition ${
-                isOtherLocation
-                  ? "border-[#A92614] bg-[#FFF4F2] text-[#A92614]"
-                  : "border-[#E3E3E3] bg-white text-[#555555]"
-              }`}
-            >
-              기타 (건물이 아닌 위치)
-            </button>
             <button
               onClick={handleBuildingSelect}
               disabled={(!selectedBuilding && !isOtherLocation) || buildingsLoading}
