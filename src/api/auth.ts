@@ -1,9 +1,10 @@
-import { http, tokenStore } from "./http";
+import { http, tokenStore, type PrincipalType } from "./http";
 
 export interface AuthResult {
   accessToken: string;
   refreshToken?: string;
   expiresIn: number;
+  principalType: PrincipalType;
 }
 
 export type AdminAuthResult = AuthResult;
@@ -12,7 +13,7 @@ export const authApi = {
   // 소셜 로그인 (Google) — 백엔드가 idToken 검증 후 JWT 발급
   async socialLogin(idToken: string): Promise<AuthResult> {
     const res = await http.post<AuthResult>("/auth/google", { idToken });
-    tokenStore.set(res.accessToken, res.refreshToken);
+    tokenStore.set(res.accessToken, res.refreshToken, res.principalType);
     return res;
   },
 
@@ -20,7 +21,7 @@ export const authApi = {
   async refresh(): Promise<AuthResult> {
     const refreshToken = tokenStore.getRefresh();
     const res = await http.post<AuthResult>("/auth/refresh", { refreshToken });
-    tokenStore.set(res.accessToken, res.refreshToken);
+    tokenStore.set(res.accessToken, res.refreshToken, res.principalType);
     return res;
   },
 
@@ -30,7 +31,7 @@ export const authApi = {
       loginId,
       password,
     });
-    tokenStore.set(res.accessToken, res.refreshToken);
+    tokenStore.set(res.accessToken, res.refreshToken, res.principalType);
     return res;
   },
 

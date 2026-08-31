@@ -13,8 +13,8 @@ export interface Building {
   id: number;
   name: string;
   code?: string;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   address?: string;
 }
 
@@ -65,7 +65,7 @@ export interface Report {
   createdAt: string;
 }
 
-export type NotificationType = "SUBMITTED" | "STATUS_CHANGED" | "RESOLVED";
+export type NotificationType = "SUBMITTED" | "HIGH_RISK" | "STATUS_CHANGED" | "RESOLVED";
 
 export interface AppNotification {
   id: number;
@@ -83,4 +83,3 @@ export const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
   REVIEWING: "검토중",
   RESOLVED: "처리완료",
 };
-

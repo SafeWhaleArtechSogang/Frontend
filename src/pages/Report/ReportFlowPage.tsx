@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { X, Camera, Image as ImageIcon, ArrowUp, MapPin, Pencil } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
-import { aiApi, reportApi } from "@/api";
+import { aiApi, buildingApi, reportApi } from "@/api";
 import type { ReportFlowAnswer, ReportQuestionStep } from "@/api";
+import type { Building } from "@/types";
 import { IMPROVEMENT_MARKER } from "@/utils/reportDescription";
 
 // 페이지 배경 (gray/10)
@@ -13,10 +14,12 @@ const BG = "#fcfcfc";
 const SOGANG_RED = "#a92614";
 // 서강대 캠퍼스 중심
 const SOGANG_CENTER = { lat: 37.551, lng: 126.9408 };
+const OTHER_LOCATION_VALUE = "__OTHER_LOCATION__";
 
 type Stage =
   | "photo"
   | "compose"
+  | "buildingSelect"
   | "locationInput"
   | "locationConfirm"
   | "afterLocation"
@@ -104,6 +107,10 @@ export default function ReportFlowPage() {
   const [locationText, setLocationText] = useState(""); // 표시 라벨(편집 가능)
   const [editingLoc, setEditingLoc] = useState(false);
   const [coords, setCoords] = useState(SOGANG_CENTER);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [buildingsLoading, setBuildingsLoading] = useState(false);
+  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
+  const [isOtherLocation, setIsOtherLocation] = useState(false);
 
   // 맞춤 질문 — 한 번에 하나씩 받아오고, 답변은 다음 질문의 컨텍스트가 된다.
   const [step, setStep] = useState<ReportQuestionStep | null>(null);
@@ -126,6 +133,29 @@ export default function ReportFlowPage() {
       navigate("/login", { replace: true, state: { from: "/report" } });
     }
   }, [isAuthLoading, isLoggedIn, navigate]);
+
+  useEffect(() => {
+    if (stage !== "buildingSelect") return;
+    let cancelled = false;
+    setBuildingsLoading(true);
+    setApiError(null);
+    void buildingApi
+      .list()
+      .then((items) => {
+        if (!cancelled) setBuildings(items);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setApiError(error instanceof Error ? error.message : "건물 목록을 불러오지 못했습니다.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBuildingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stage]);
 
   // objectURL 정리
   useEffect(() => {
@@ -196,10 +226,10 @@ export default function ReportFlowPage() {
         { role: "ai", text: "보내주신 사진과 내용을 바탕으로 신고서를 작성할게요." },
         {
           role: "ai",
-          text: "신고 위치가 어디인가요?\n건물은 정확한 명칭으로, 길·야외라면 가까운 건물을 기준으로 설명해 주세요.\n(예: 로욜라 도서관 2관)",
+          text: "신고 위치의 건물을 먼저 선택해 주세요.\n길이나 야외처럼 건물이 아닌 곳은 기타를 선택할 수 있어요.",
         },
       );
-      setStage("locationInput");
+      setStage("buildingSelect");
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "사진을 저장하지 못했습니다.");
     } finally {
@@ -212,13 +242,32 @@ export default function ReportFlowPage() {
     if (!t) return;
     if (stage === "locationInput") {
       addMsgs({ role: "user", text: t }, { role: "ai", text: "해당 위치가 맞나요?" });
-      setLocationQuery(t);
-      setLocationText(t);
+      const fullLocation = selectedBuilding ? `${selectedBuilding.name} ${t}` : t;
+      setLocationQuery(fullLocation);
+      setLocationText(fullLocation);
+      if (selectedBuilding?.lat != null && selectedBuilding.lng != null) {
+        setCoords({ lat: selectedBuilding.lat, lng: selectedBuilding.lng });
+      }
       setStage("locationConfirm");
     } else {
       addMsgs({ role: "user", text: t });
     }
     setInput("");
+  };
+
+  const handleBuildingSelect = () => {
+    if (!selectedBuilding && !isOtherLocation) return;
+    const label = selectedBuilding?.name ?? "기타 (건물이 아닌 위치)";
+    addMsgs(
+      { role: "user", text: label },
+      {
+        role: "ai",
+        text: selectedBuilding
+          ? `${selectedBuilding.name}의 세부 위치를 알려주세요.\n(예: 3관 입구 앞, 2층 계단 옆)`
+          : "신고할 세부 위치를 알려주세요.\n길·야외라면 가까운 건물이나 지점을 기준으로 설명해 주세요.",
+      },
+    );
+    setStage("locationInput");
   };
 
   const startQuestions = (firstStep: ReportQuestionStep) => {
@@ -248,12 +297,8 @@ export default function ReportFlowPage() {
     setSubmitting(true);
     setApiError(null);
     try {
-      const candidates = await aiApi.analyzeLocation(coords.lat, coords.lng);
-      const normalized = locationText.replace(/\s/g, "");
-      const candidate =
-        candidates.find((item) => normalized.includes(item.name.replace(/\s/g, "")));
       await reportApi.patchLocation(reportId, {
-        buildingId: candidate?.buildingId,
+        buildingId: selectedBuilding?.id,
         locationDescription: locationText,
         lat: coords.lat,
         lng: coords.lng,
@@ -364,6 +409,8 @@ export default function ReportFlowPage() {
     setMessages([]);
     setLocationQuery("");
     setLocationText("");
+    setSelectedBuilding(null);
+    setIsOtherLocation(false);
     setReportId(null);
     setApiError(null);
     setStage("compose");
@@ -498,7 +545,8 @@ export default function ReportFlowPage() {
   const progress =
     stage === "photo" || stage === "compose"
       ? "사진 · 설명 1/4"
-      : stage === "locationInput" ||
+      : stage === "buildingSelect" ||
+          stage === "locationInput" ||
           stage === "locationConfirm" ||
           stage === "afterLocation"
         ? "신고 위치 2/4"
@@ -676,12 +724,61 @@ export default function ReportFlowPage() {
         </div>
       )}
 
+      {stage === "buildingSelect" && (
+        <div className="p-2.5 shrink-0">
+          <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] p-5 flex flex-col gap-3">
+            <p className="text-sm font-medium text-[#262626] tracking-[-0.28px]">
+              신고할 건물을 선택해 주세요.
+            </p>
+            <select
+              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
+              value={isOtherLocation ? OTHER_LOCATION_VALUE : selectedBuilding?.id ?? ""}
+              disabled={buildingsLoading}
+              onChange={(e) => {
+                if (e.target.value === OTHER_LOCATION_VALUE) {
+                  setSelectedBuilding(null);
+                  setIsOtherLocation(true);
+                  return;
+                }
+                const building = buildings.find((item) => item.id === Number(e.target.value)) ?? null;
+                setSelectedBuilding(building);
+                setIsOtherLocation(false);
+              }}
+            >
+              <option value="">
+                {buildingsLoading ? "건물 목록을 불러오는 중..." : "건물을 선택해 주세요"}
+              </option>
+              {buildings.map((building) => (
+                <option key={building.id} value={building.id}>
+                  {building.name}
+                </option>
+              ))}
+              <option value={OTHER_LOCATION_VALUE}>기타 (건물이 아닌 위치)</option>
+            </select>
+            <button
+              onClick={handleBuildingSelect}
+              disabled={(!selectedBuilding && !isOtherLocation) || buildingsLoading}
+              className="w-full h-11 rounded-[10px] text-sm font-semibold text-white tracking-[-0.28px] transition disabled:bg-[#C4C4C4]"
+              style={{ backgroundColor: SOGANG_RED }}
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
+
       {(stage === "locationInput" || stage === "afterLocation") && (
         <div className="p-2.5 shrink-0">
           <div className="w-full bg-white/30 backdrop-blur-[20px] rounded-[20px] shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] flex items-end">
             <AutoTextarea
               className="flex-1 min-w-0 p-5 bg-transparent outline-none resize-none text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] placeholder:text-[#7b7b7b] max-h-[140px]"
-              placeholder="내용을 입력해주세요."
+              placeholder={
+                stage === "locationInput"
+                  ? selectedBuilding
+                    ? "세부 위치를 입력해주세요. (예: 3관 입구 앞)"
+                    : "세부 위치를 입력해주세요. (예: 정문 앞 횡단보도)"
+                  : "내용을 입력해주세요."
+              }
               value={input}
               onChange={setInput}
               onEnter={handleInputSend}
@@ -704,7 +801,12 @@ export default function ReportFlowPage() {
             <p className="text-xs text-[#555555] tracking-[-0.24px] leading-[1.4] text-center">
               아래 지도에서 위치를 직접 이동할 수 있어요.
             </p>
-            <MapPreview query={locationQuery} onCoordsChange={setCoords} />
+            <MapPreview
+              query={locationQuery}
+              fallbackLat={selectedBuilding?.lat ?? SOGANG_CENTER.lat}
+              fallbackLng={selectedBuilding?.lng ?? SOGANG_CENTER.lng}
+              onCoordsChange={setCoords}
+            />
             <div className="flex items-center gap-2 justify-center w-full">
               {editingLoc ? (
                 <input
@@ -939,9 +1041,13 @@ function ProposalEditableField({
 // ─── 지도 프리뷰 (고정 중앙 핀 + 드래그로 좌표 변경) ───
 function MapPreview({
   query,
+  fallbackLat,
+  fallbackLng,
   onCoordsChange,
 }: {
   query: string;
+  fallbackLat: number;
+  fallbackLng: number;
   onCoordsChange: (c: { lat: number; lng: number }) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -956,11 +1062,11 @@ function MapPreview({
       if (cancelled || !ref.current) return;
       const w = window as any;
       const map = new w.kakao.maps.Map(ref.current, {
-        center: new w.kakao.maps.LatLng(SOGANG_CENTER.lat, SOGANG_CENTER.lng),
+        center: new w.kakao.maps.LatLng(fallbackLat, fallbackLng),
         level: 3,
       });
       setTimeout(() => map.relayout(), 0);
-      onCoordsChange(SOGANG_CENTER);
+      onCoordsChange({ lat: fallbackLat, lng: fallbackLng });
 
       // 답변 위치로 지도 중심 이동
       if (query && w.kakao.maps.services) {
@@ -984,7 +1090,7 @@ function MapPreview({
     return () => {
       cancelled = true;
     };
-  }, [query, onCoordsChange]);
+  }, [fallbackLat, fallbackLng, query, onCoordsChange]);
 
   return (
     <div className="isolate relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, List, X, Heart } from "lucide-react";
+import { Plus, List, X, Heart, Bell } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
 import { reportApi } from "@/api";
@@ -12,6 +12,7 @@ import FilterChip from "@/components/map/FilterChip";
 import SafetyPinRow from "@/components/map/SafetyPinRow";
 import SheetCloseButton from "@/components/map/SheetCloseButton";
 import SheetProfile from "@/components/map/SheetProfile";
+import NotificationPanel from "@/components/notification/NotificationPanel";
 import type { Report } from "@/types";
 import type { RiskLevel, ReportStatus } from "@/types";
 
@@ -97,6 +98,7 @@ export default function MapPage() {
   const [selectedPin, setSelectedPin] = useState<PinItem | null>(null);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [kakaoMap, setKakaoMap] = useState<any>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const FILTER_TABS = [
     { id: "all", label: "전체 신고" },
@@ -310,6 +312,21 @@ export default function MapPage() {
         )}
       </div>
 
+      <button
+        type="button"
+        aria-label="알림"
+        onClick={() => {
+          if (!isLoggedIn) {
+            navigate("/login", { state: { from: "/map" } });
+            return;
+          }
+          setNotificationsOpen(true);
+        }}
+        className="absolute right-4 top-4 z-40 flex size-10 items-center justify-center rounded-full bg-white/90 shadow-[0px_2px_12px_rgba(0,0,0,0.16)] transition active:scale-95"
+      >
+        <Bell className="size-5 text-neutral-800" />
+      </button>
+
       {/* 신고 버튼 (바텀시트 위) — 전체화면 상세에서는 가린다 */}
       {!sheetFullscreen && (
         <button
@@ -490,6 +507,8 @@ export default function MapPage() {
           </>
         )}
       </div>
+
+      <NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
 
     </div>
   );

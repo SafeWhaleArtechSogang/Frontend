@@ -1,5 +1,5 @@
 import { http } from "./http";
-import type { Report, ReportStatus, RiskLevel, Department } from "@/types";
+import type { AppNotification, Department, Report, ReportStatus, RiskLevel } from "@/types";
 import type { Page } from "./http";
 
 export interface AdminStatsSummary {
@@ -58,4 +58,8 @@ export const adminApi = {
 
   resolve: (id: number, actionNote: string) =>
     http.post<Report>(`/admin/reports/${id}/resolve`, { actionNote }),
+
+  notifications: () => http.get<AppNotification[]>("/admin/notifications"),
+
+  readNotification: (id: number) => http.patch<AppNotification>(`/admin/notifications/${id}/read`),
 };

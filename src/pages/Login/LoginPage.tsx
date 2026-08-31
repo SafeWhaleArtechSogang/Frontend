@@ -17,8 +17,8 @@ export default function LoginPage() {
       setSubmitting(true);
       setError(null);
       try {
-        await login(idToken);
-        navigate("/map", { replace: true });
+        const principalType = await login(idToken);
+        navigate(principalType === "ADMIN" ? "/admin" : "/map", { replace: true });
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "로그인에 실패했습니다.");
         setSubmitting(false);

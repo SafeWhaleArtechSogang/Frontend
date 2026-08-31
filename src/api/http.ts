@@ -41,17 +41,26 @@ const BASE_URL =
 // ── JWT 저장소 (Access/Refresh) ──
 const ACCESS_KEY = "safewhale_access_token";
 const REFRESH_KEY = "safewhale_refresh_token";
+const PRINCIPAL_TYPE_KEY = "safewhale_principal_type";
+
+export type PrincipalType = "USER" | "ADMIN";
 
 export const tokenStore = {
   getAccess: () => localStorage.getItem(ACCESS_KEY),
   getRefresh: () => localStorage.getItem(REFRESH_KEY),
-  set(access: string, refresh?: string) {
+  getPrincipalType: (): PrincipalType | null => {
+    const value = localStorage.getItem(PRINCIPAL_TYPE_KEY);
+    return value === "USER" || value === "ADMIN" ? value : null;
+  },
+  set(access: string, refresh?: string, principalType?: PrincipalType) {
     localStorage.setItem(ACCESS_KEY, access);
     if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+    if (principalType) localStorage.setItem(PRINCIPAL_TYPE_KEY, principalType);
   },
   clear() {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(PRINCIPAL_TYPE_KEY);
   },
 };
 
@@ -84,9 +93,10 @@ async function requestWithRetry<T>(method: string, path: string, body: Body, ret
       const refreshEnv = (await refreshRes.json()) as Envelope<{
         accessToken: string;
         refreshToken?: string;
+        principalType?: PrincipalType;
       }>;
       if (!refreshRes.ok || !refreshEnv.success || !refreshEnv.data) throw new Error();
-      tokenStore.set(refreshEnv.data.accessToken, refreshEnv.data.refreshToken);
+      tokenStore.set(refreshEnv.data.accessToken, refreshEnv.data.refreshToken, refreshEnv.data.principalType);
       return requestWithRetry<T>(method, path, body, false);
     } catch {
       tokenStore.clear();
