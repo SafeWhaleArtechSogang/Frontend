@@ -305,7 +305,7 @@ export default function MapPage() {
   }, [kakaoMap, allPins]);
 
   return (
-    <div className="relative h-svh flex flex-col">
+    <div className="app-shell relative h-svh flex flex-col">
       {/* Map */}
       <div ref={mapRef} className="flex-1 bg-bg-tertiary">
         {!mapLoaded && (

@@ -28,7 +28,7 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="flex flex-col min-h-dvh px-page">
+    <div className="app-shell flex flex-col min-h-dvh px-page">
       {/* Logo Area */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <img src={logo} alt="안전고래" className="w-[160px] h-[160px] rounded-xl mb-4" />

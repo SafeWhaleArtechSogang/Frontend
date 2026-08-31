@@ -1,0 +1,91 @@
+import logo from "@/assets/logo.png";
+import type { DepartmentWithCount } from "@/api/admin";
+
+interface AdminSidebarProps {
+  departments: DepartmentWithCount[];
+  selectedId: number | null;
+  onSelect: (departmentId: number | null) => void;
+  onLogout: () => void;
+}
+
+/** 관리자 사이드바 (Figma 323:5379) — 부서별 미처리 건수 */
+export default function AdminSidebar({
+  departments,
+  selectedId,
+  onSelect,
+  onLogout,
+}: AdminSidebarProps) {
+  return (
+    <aside className="flex w-[273px] shrink-0 flex-col border-r border-gray-200 bg-gray-10">
+      <div className="flex items-center gap-2.5 px-6 pt-6">
+        <img src={logo} alt="" className="size-8 shrink-0 rounded-[6px] object-cover" />
+        <span className="text-base font-semibold tracking-[-0.4px] text-neutral-800">안전고래</span>
+      </div>
+
+      <p className="px-6 pb-2 pt-7 text-[11px] font-medium tracking-[-0.4px] text-neutral-400">
+        부서별 미처리
+      </p>
+
+      <nav className="min-h-0 flex-1 overflow-y-auto px-4">
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className={`flex h-10 w-full items-center justify-between rounded-[10px] px-2.5 transition ${
+            selectedId === null ? "bg-sogang-50" : "hover:bg-neutral-50"
+          }`}
+        >
+          <span
+            className={`text-sm tracking-[-0.4px] ${
+              selectedId === null ? "font-semibold text-sogang-500" : "font-medium text-neutral-600"
+            }`}
+          >
+            전체
+          </span>
+        </button>
+
+        {departments.map((department) => {
+          const selected = selectedId === department.id;
+          return (
+            <button
+              key={department.id}
+              type="button"
+              onClick={() => onSelect(department.id)}
+              className={`flex h-10 w-full items-center justify-between rounded-[10px] px-2.5 transition ${
+                selected ? "bg-sogang-50" : "hover:bg-neutral-50"
+              }`}
+            >
+              <span
+                className={`truncate text-sm tracking-[-0.4px] ${
+                  selected ? "font-semibold text-sogang-500" : "font-medium text-neutral-600"
+                }`}
+              >
+                {department.name}
+              </span>
+              <span
+                className={`flex h-5 min-w-[34px] items-center justify-center rounded-full px-2 text-[11px] font-semibold tracking-[-0.4px] ${
+                  selected ? "bg-sogang-500 text-white" : "bg-neutral-100 text-neutral-600"
+                }`}
+              >
+                {department.pendingCount}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mx-4 mb-6 flex items-center gap-3 border-t border-gray-200 pt-4">
+        <span className="size-8 shrink-0 rounded-[6px] bg-neutral-100" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold tracking-[-0.4px] text-neutral-800">관리자</p>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="text-[11px] font-medium tracking-[-0.4px] text-neutral-400 underline underline-offset-2"
+          >
+            로그아웃
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}

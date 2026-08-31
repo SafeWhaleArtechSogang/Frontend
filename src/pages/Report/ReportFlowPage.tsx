@@ -137,21 +137,20 @@ export default function ReportFlowPage() {
   useEffect(() => {
     if (stage !== "buildingSelect") return;
     let cancelled = false;
-    setBuildingsLoading(true);
-    setApiError(null);
-    void buildingApi
-      .list()
-      .then((items) => {
-        if (!cancelled) setBuildings(items);
-      })
-      .catch((error) => {
+    void (async () => {
+      try {
+        const items = await buildingApi.list();
+        if (cancelled) return;
+        setBuildings(items);
+        setApiError(null);
+      } catch (error) {
         if (!cancelled) {
           setApiError(error instanceof Error ? error.message : "건물 목록을 불러오지 못했습니다.");
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setBuildingsLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -229,6 +228,7 @@ export default function ReportFlowPage() {
           text: "신고 위치의 건물을 먼저 선택해 주세요.\n길이나 야외처럼 건물이 아닌 곳은 기타를 선택할 수 있어요.",
         },
       );
+      setBuildingsLoading(true);
       setStage("buildingSelect");
     } catch (error) {
       setApiError(error instanceof Error ? error.message : "사진을 저장하지 못했습니다.");
@@ -419,7 +419,7 @@ export default function ReportFlowPage() {
   // ─── 신고서 문서 화면 (채팅 아님) ───
   if (stage === "proposal") {
     return (
-      <div className="h-svh w-full flex flex-col" style={{ backgroundColor: BG }}>
+      <div className="app-shell h-svh w-full flex flex-col" style={{ backgroundColor: BG }}>
         {/* 헤더 */}
         <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
           <div className="h-[44px]" />
@@ -554,7 +554,7 @@ export default function ReportFlowPage() {
 
   return (
     <div
-      className="h-svh w-full flex flex-col relative"
+      className="app-shell h-svh w-full flex flex-col relative"
       style={{ backgroundColor: BG }}
     >
       {/* 헤더 (채팅 위 오버레이) */}

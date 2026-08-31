@@ -71,7 +71,7 @@ export default function MyReportsPage() {
   };
 
   return (
-    <div className="relative flex h-svh flex-col bg-gray-10">
+    <div className="app-shell relative flex h-svh flex-col bg-gray-10">
       {/* 상단바 (297:4845) */}
       <div className="flex shrink-0 items-center justify-between px-2.5 pt-2">
         <button
