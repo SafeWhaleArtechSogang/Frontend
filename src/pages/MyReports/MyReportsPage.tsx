@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronLeft } from "lucide-react";
+import { Bell, ChevronLeft, X } from "lucide-react";
 import ProfileIdentity from "@/components/common/ProfileIdentity";
 import MyReportCard from "@/components/report/MyReportCard";
 import ReportDetailView from "@/components/report/ReportDetailView";
 import NotificationPanel from "@/components/notification/NotificationPanel";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/auth";
 import { meApi } from "@/api";
 import type { Report, RiskLevel } from "@/types";
@@ -40,6 +41,8 @@ export default function MyReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { notifications, loading: notificationsLoading, error: notificationsError, hasUnread, markRead } =
+    useNotifications(isLoggedIn);
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -68,7 +71,7 @@ export default function MyReportsPage() {
   };
 
   return (
-    <div className="flex h-svh flex-col bg-gray-10">
+    <div className="relative flex h-svh flex-col bg-gray-10">
       {/* 상단바 (297:4845) */}
       <div className="flex shrink-0 items-center justify-between px-2.5 pt-2">
         <button
@@ -83,10 +86,19 @@ export default function MyReportsPage() {
           <button
             type="button"
             aria-label="알림"
-            onClick={() => setNotificationsOpen(true)}
-            className="flex size-9 items-center justify-center transition active:scale-95"
+            onClick={() => setNotificationsOpen((prev) => !prev)}
+            className="relative z-40 flex size-9 items-center justify-center transition active:scale-95"
           >
-            <Bell className="size-5 text-neutral-800" />
+            {notificationsOpen ? (
+              <X className="size-5 text-neutral-800" />
+            ) : (
+              <span className="relative block">
+                <Bell className="size-5 text-neutral-800" />
+                {hasUnread && (
+                  <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-sogang-500 ring-2 ring-gray-10" />
+                )}
+              </span>
+            )}
           </button>
         )}
       </div>
@@ -143,7 +155,13 @@ export default function MyReportsPage() {
           </div>
         </>
       )}
-      <NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <NotificationPanel
+        open={notificationsOpen}
+        notifications={notifications}
+        loading={notificationsLoading}
+        error={notificationsError}
+        onRead={markRead}
+      />
     </div>
   );
 }

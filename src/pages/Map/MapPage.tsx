@@ -12,7 +12,8 @@ import FilterChip from "@/components/map/FilterChip";
 import SafetyPinRow from "@/components/map/SafetyPinRow";
 import SheetCloseButton from "@/components/map/SheetCloseButton";
 import SheetProfile from "@/components/map/SheetProfile";
-import NotificationPanel from "@/components/notification/NotificationPanel";
+import NotificationDropdown from "@/components/notification/NotificationDropdown";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { Report } from "@/types";
 import type { RiskLevel, ReportStatus } from "@/types";
 
@@ -99,6 +100,8 @@ export default function MapPage() {
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [kakaoMap, setKakaoMap] = useState<any>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { notifications, loading: notificationsLoading, error: notificationsError, hasUnread, markRead } =
+    useNotifications(isLoggedIn);
 
   const FILTER_TABS = [
     { id: "all", label: "전체 신고" },
@@ -314,17 +317,30 @@ export default function MapPage() {
 
       <button
         type="button"
-        aria-label="알림"
+        aria-label={notificationsOpen ? "알림 닫기" : "알림"}
         onClick={() => {
           if (!isLoggedIn) {
             navigate("/login", { state: { from: "/map" } });
             return;
           }
-          setNotificationsOpen(true);
+          setNotificationsOpen((prev) => !prev);
         }}
-        className="absolute right-4 top-4 z-40 flex size-10 items-center justify-center rounded-full bg-white/90 shadow-[0px_2px_12px_rgba(0,0,0,0.16)] transition active:scale-95"
+        className={`absolute right-4 top-4 z-40 rounded-full p-2.5 transition active:scale-95 ${
+          notificationsOpen
+            ? ""
+            : "bg-white/30 shadow-[0px_2px_20px_0px_rgba(0,0,0,0.1)] backdrop-blur-[20px] active:bg-white/70"
+        }`}
       >
-        <Bell className="size-5 text-neutral-800" />
+        {notificationsOpen ? (
+          <X className="w-6 h-6 text-[#262626]" />
+        ) : (
+          <span className="relative block">
+            <Bell className="w-6 h-6 text-[#262626]" />
+            {hasUnread && (
+              <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-sogang-500 ring-2 ring-white/80" />
+            )}
+          </span>
+        )}
       </button>
 
       {/* 신고 버튼 (바텀시트 위) — 전체화면 상세에서는 가린다 */}
@@ -508,7 +524,13 @@ export default function MapPage() {
         )}
       </div>
 
-      <NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <NotificationDropdown
+        open={notificationsOpen}
+        notifications={notifications}
+        loading={notificationsLoading}
+        error={notificationsError}
+        onRead={markRead}
+      />
 
     </div>
   );
