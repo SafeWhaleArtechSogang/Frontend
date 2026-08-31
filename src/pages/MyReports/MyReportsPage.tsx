@@ -4,6 +4,7 @@ import { Bell, ChevronLeft } from "lucide-react";
 import ProfileIdentity from "@/components/common/ProfileIdentity";
 import MyReportCard from "@/components/report/MyReportCard";
 import ReportDetailView from "@/components/report/ReportDetailView";
+import NotificationPanel from "@/components/notification/NotificationPanel";
 import { useAuth } from "@/auth";
 import { meApi } from "@/api";
 import type { Report, RiskLevel } from "@/types";
@@ -38,6 +39,7 @@ export default function MyReportsPage() {
   const [selected, setSelected] = useState<MyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -78,10 +80,14 @@ export default function MyReportsPage() {
           <ChevronLeft className="size-6 text-neutral-800" />
         </button>
         {!selected && (
-          // TODO: 알림 화면 디자인이 나오면 연결 (GET /me/notifications)
-          <div className="flex size-9 items-center justify-center" aria-hidden="true">
+          <button
+            type="button"
+            aria-label="알림"
+            onClick={() => setNotificationsOpen(true)}
+            className="flex size-9 items-center justify-center transition active:scale-95"
+          >
             <Bell className="size-5 text-neutral-800" />
-          </div>
+          </button>
         )}
       </div>
 
@@ -137,6 +143,7 @@ export default function MyReportsPage() {
           </div>
         </>
       )}
+      <NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </div>
   );
 }
