@@ -132,7 +132,10 @@ export default function ReportFlowPage() {
     if (!isAuthLoading && !isLoggedIn) {
       navigate("/login", { replace: true, state: { from: "/report" } });
     }
-  }, [isAuthLoading, isLoggedIn, navigate]);
+    if (!isAuthLoading && isLoggedIn && !user?.profileCompleted) {
+      navigate("/profile", { replace: true, state: { from: "/report" } });
+    }
+  }, [isAuthLoading, isLoggedIn, navigate, user?.profileCompleted]);
 
   useEffect(() => {
     if (stage !== "buildingSelect") return;

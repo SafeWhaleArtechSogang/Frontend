@@ -23,6 +23,8 @@ export interface User {
   name: string;
   major?: string | null;
   studentNo?: string | null;
+  phone?: string | null;
+  profileCompleted: boolean;
 }
 
 export interface ReportPhoto {

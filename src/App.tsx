@@ -8,6 +8,7 @@ import LoginPage from './pages/Login/LoginPage'
 import MapPage from './pages/Map/MapPage'
 import ReportFlowPage from './pages/Report/ReportFlowPage'
 import MyReportsPage from './pages/MyReports/MyReportsPage'
+import ProfileSetupPage from './pages/Profile/ProfileSetupPage'
 import AdminGuard from './pages/Admin/AdminGuard'
 import AdminDashboardPage from './pages/Admin/AdminDashboardPage'
 import AdminReportDetailPage from './pages/Admin/AdminReportDetailPage'
@@ -29,6 +30,7 @@ export default function App() {
     const profile = await meApi.getProfile()
     setUser(profile)
     setIsLoggedIn(true)
+    return profile
   }, [])
 
   const login = useCallback(async (idToken: string) => {
@@ -66,13 +68,14 @@ export default function App() {
   }, [logout])
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, isAuthLoading, user, principalType, login, refreshProfile: loadProfile, logout }}>
       <Routes>
         <Route path="/" element={<Navigate to="/map" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/report" element={<ReportFlowPage />} />
         <Route path="/my-reports" element={<MyReportsPage />} />
+        <Route path="/profile" element={<ProfileSetupPage />} />
         <Route path="/admin" element={<AdminGuard><AdminDashboardPage /></AdminGuard>} />
         <Route path="/admin/reports/:id" element={<AdminGuard><AdminReportDetailPage /></AdminGuard>} />
       </Routes>

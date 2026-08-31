@@ -170,6 +170,10 @@ export default function MapPage() {
       navigate("/login", { state: { from: "/report" } });
       return;
     }
+    if (!user?.profileCompleted) {
+      navigate("/profile", { state: { from: "/report" } });
+      return;
+    }
     navigate("/report");
   };
 
@@ -480,7 +484,10 @@ export default function MapPage() {
                   [user?.major, user?.studentNo].filter(Boolean).join(" · ") ||
                   (isLoggedIn ? "프로필 정보 미등록" : "내 신고를 확인할 수 있어요")
                 }
-                onClick={() => navigate(isLoggedIn ? "/my-reports" : "/login", isLoggedIn ? undefined : { state: { from: "/my-reports" } })}
+                onClick={() => navigate(
+                  isLoggedIn ? (user?.profileCompleted ? "/my-reports" : "/profile") : "/login",
+                  isLoggedIn ? (user?.profileCompleted ? undefined : { state: { from: "/my-reports" } }) : { state: { from: "/my-reports" } },
+                )}
               />
               {sheetExpanded && (
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide">
