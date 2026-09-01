@@ -334,7 +334,8 @@ export default function ReportFlowPage() {
         questionId: current.question.id,
         question: current.question.text,
         answer: t,
-        axis: current.axis,
+        // AI 질문의 axis는 없을 수(null) 있으므로 답변 API에는 필드를 생략한다.
+        axis: current.axis ?? undefined,
       },
     ];
     setAnswers(nextAnswers);
