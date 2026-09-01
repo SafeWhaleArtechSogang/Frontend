@@ -327,7 +327,12 @@ export default function ReportFlowPage() {
     addMsgs({ role: "user", text: t });
     const nextAnswers = [
       ...answers,
-      { questionId: current.question.id, question: current.question.text, answer: t },
+      {
+        questionId: current.question.id,
+        question: current.question.text,
+        answer: t,
+        axis: current.axis,
+      },
     ];
     setAnswers(nextAnswers);
     setDirectActive(false);

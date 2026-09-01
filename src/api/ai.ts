@@ -28,12 +28,14 @@ export interface ReportQuestionStep {
   questionIndex: number;
   questionCount: number;
   last: boolean;
+  axis: string | null;
 }
 
 export interface ReportFlowAnswer {
   questionId: string;
   question: string;
   answer: string;
+  axis?: string;
 }
 
 export interface ReportFlowDraft {
