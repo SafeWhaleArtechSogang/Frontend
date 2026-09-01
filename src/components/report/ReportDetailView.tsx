@@ -3,6 +3,7 @@ import ShareIcon from "@/components/common/ShareIcon";
 import { splitDescription } from "@/utils/reportDescription";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import MyBadge from "@/components/common/MyBadge";
+import { resolveApiAssetUrl } from "@/api/http";
 
 export interface ReportDetailData {
   title: string;
@@ -28,7 +29,7 @@ export default function ReportDetailView({ report, showMyBadge = false }: Report
       <div className="px-1.5 pt-1.5">
         <div className="w-full aspect-square bg-neutral-50 rounded-[10px] overflow-hidden">
           {report.imageUrl && (
-            <img src={report.imageUrl} alt="신고 사진" className="w-full h-full object-cover" />
+            <img src={resolveApiAssetUrl(report.imageUrl)} alt="신고 사진" className="w-full h-full object-cover" />
           )}
         </div>
       </div>

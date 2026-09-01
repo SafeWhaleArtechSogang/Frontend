@@ -38,6 +38,12 @@ export class ApiException extends Error {
 const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 
+/** 백엔드의 `/files/...` 상대 URL을 API 도메인 기준 URL로 변환한다. */
+export function resolveApiAssetUrl(url: string): string {
+  if (!url || /^https?:\/\//i.test(url) || !/^https?:\/\//i.test(BASE_URL)) return url;
+  return new URL(url, BASE_URL).toString();
+}
+
 // ── JWT 저장소 (Access/Refresh) ──
 const ACCESS_KEY = "safewhale_access_token";
 const REFRESH_KEY = "safewhale_refresh_token";

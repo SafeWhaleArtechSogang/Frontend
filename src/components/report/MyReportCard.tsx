@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import RiskBadge from "@/components/common/RiskBadge";
 import type { RiskLevel } from "@/types";
+import { resolveApiAssetUrl } from "@/api/http";
 
 export interface MyReportCardData {
   title: string;
@@ -27,7 +28,7 @@ export default function MyReportCard({ report, onClick }: MyReportCardProps) {
     >
       <div className="size-[110px] shrink-0 overflow-hidden rounded-[10px] bg-neutral-100">
         {report.imageUrl && (
-          <img src={report.imageUrl} alt="" className="size-full object-cover" />
+          <img src={resolveApiAssetUrl(report.imageUrl)} alt="" className="size-full object-cover" />
         )}
       </div>
 

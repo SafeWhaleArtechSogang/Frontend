@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download } from "lucide-react";
 import { adminApi, type DepartmentWithCount } from "@/api/admin";
+import { resolveApiAssetUrl } from "@/api/http";
 import type { Report, ReportStatus, RiskLevel } from "@/types";
 import { FILTER_STATUSES, STATUS_LABEL, TIMELINE_STEPS } from "@/constants/adminStatus";
 import { RISK_LABEL } from "@/constants/risk";
@@ -90,7 +91,7 @@ export default function AdminReportDetailPage() {
   const downloadReportFile = useCallback(async () => {
     try {
       const { url } = await adminApi.generateReportFile(reportId);
-      window.open(url, "_blank", "noopener");
+      window.open(resolveApiAssetUrl(url), "_blank", "noopener");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "신고서를 내려받지 못했습니다.");
     }
@@ -137,7 +138,7 @@ export default function AdminReportDetailPage() {
           <div className="flex gap-8">
             <div className="size-[280px] shrink-0 overflow-hidden rounded-[6px] bg-neutral-100">
               {report.photos[0]?.url ? (
-                <img src={report.photos[0].url} alt="신고 사진" className="size-full object-cover" />
+                <img src={resolveApiAssetUrl(report.photos[0].url)} alt="신고 사진" className="size-full object-cover" />
               ) : (
                 <span className="flex size-full items-center justify-center text-[11px] font-medium text-neutral-400">
                   신고 사진

@@ -28,6 +28,7 @@ export default function AdminDashboardPage() {
 
   const [summary, setSummary] = useState<AdminStatsSummary | null>(null);
   const [departments, setDepartments] = useState<DepartmentWithCount[]>([]);
+  const [adminName, setAdminName] = useState("관리자");
   const [page, setPage] = useState<Page<Report> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +51,10 @@ export default function AdminDashboardPage() {
   // 요약·부서는 화면 진입 시 한 번만
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([adminApi.statsSummary(), adminApi.departments()])
-      .then(([stats, depts]) => {
+    void Promise.all([adminApi.me(), adminApi.statsSummary(), adminApi.departments()])
+      .then(([admin, stats, depts]) => {
         if (cancelled) return;
+        setAdminName(admin.name);
         setSummary(stats);
         setDepartments(depts);
       })
@@ -100,6 +102,7 @@ export default function AdminDashboardPage() {
       <AdminSidebar
         departments={departments}
         selectedId={departmentId}
+        adminName={adminName}
         onSelect={(id) => changeFilter(() => setDepartmentId(id))}
         onLogout={logout}
       />

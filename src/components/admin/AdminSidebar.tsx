@@ -4,6 +4,7 @@ import type { DepartmentWithCount } from "@/api/admin";
 interface AdminSidebarProps {
   departments: DepartmentWithCount[];
   selectedId: number | null;
+  adminName: string;
   onSelect: (departmentId: number | null) => void;
   onLogout: () => void;
 }
@@ -12,6 +13,7 @@ interface AdminSidebarProps {
 export default function AdminSidebar({
   departments,
   selectedId,
+  adminName,
   onSelect,
   onLogout,
 }: AdminSidebarProps) {
@@ -76,7 +78,7 @@ export default function AdminSidebar({
       <div className="mx-4 mb-6 flex items-center gap-3 border-t border-gray-200 pt-4">
         <span className="size-8 shrink-0 rounded-[6px] bg-neutral-100" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-semibold tracking-[-0.4px] text-neutral-800">관리자</p>
+          <p className="truncate text-xs font-semibold tracking-[-0.4px] text-neutral-800">{adminName}</p>
           <button
             type="button"
             onClick={onLogout}

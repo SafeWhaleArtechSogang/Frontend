@@ -13,6 +13,10 @@ export interface DepartmentWithCount extends Department {
   pendingCount: number;
 }
 
+export interface AdminMe {
+  name: string;
+}
+
 export interface AdminReportQuery {
   status?: ReportStatus;
   departmentId?: number;
@@ -35,6 +39,8 @@ function toQuery(q: AdminReportQuery): string {
 
 // 관리자 대시보드 (ROLE_ADMIN)
 export const adminApi = {
+  me: () => http.get<AdminMe>("/admin/me"),
+
   statsSummary: () => http.get<AdminStatsSummary>("/admin/stats/summary"),
 
   departments: () => http.get<DepartmentWithCount[]>("/admin/departments"),

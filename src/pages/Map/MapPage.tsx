@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, List, X, Heart, Bell } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
-import { reportApi } from "@/api";
+import { reportApi, resolveApiAssetUrl } from "@/api";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import ShareIcon from "@/components/common/ShareIcon";
 import MyBadge from "@/components/common/MyBadge";
@@ -465,7 +465,7 @@ export default function MapPage() {
 
               {/* 사진 */}
               <div className="flex-1 min-h-[100px] bg-[#F5F5F5] rounded-[10px] overflow-hidden">
-                {selectedPin.imageUrl && <img src={selectedPin.imageUrl} alt="신고 사진" className="w-full h-full object-cover" />}
+                {selectedPin.imageUrl && <img src={resolveApiAssetUrl(selectedPin.imageUrl)} alt="신고 사진" className="w-full h-full object-cover" />}
               </div>
             </div>
           )
