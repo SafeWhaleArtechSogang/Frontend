@@ -5,7 +5,7 @@ import { STATUS_BADGE, STATUS_LABEL } from "@/constants/adminStatus";
 export default function ReportStatusBadge({ status }: { status: ReportStatus }) {
   return (
     <span
-      className={`inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-full px-2.5 text-xs font-medium tracking-[-0.4px] ${STATUS_BADGE[status]}`}
+      className={`flex h-8 shrink-0 items-center whitespace-nowrap rounded-full px-2.5 text-sm font-medium leading-[1.48] tracking-[-0.35px] ${STATUS_BADGE[status]}`}
     >
       {STATUS_LABEL[status]}
     </span>
