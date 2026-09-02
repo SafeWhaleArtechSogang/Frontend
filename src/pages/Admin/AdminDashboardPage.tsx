@@ -11,6 +11,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminRiskCell from "@/components/admin/AdminRiskCell";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
+import AdminMapView from "@/components/admin/AdminMapView";
 import NotificationItem from "@/components/notification/NotificationItem";
 
 const PAGE_SIZE = 20;
@@ -38,6 +39,7 @@ export default function AdminDashboardPage() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
+  const [view, setView] = useState<"reports" | "map">("reports");
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const {
@@ -89,6 +91,7 @@ export default function AdminDashboardPage() {
   }, [status, departmentId, query, pageIndex]);
 
   const changeFilter = useCallback((next: () => void) => {
+    setView("reports");
     setLoading(true);
     setPageIndex(0);
     next();
@@ -102,14 +105,16 @@ export default function AdminDashboardPage() {
       <AdminSidebar
         departments={departments}
         selectedId={departmentId}
+        activeView={view}
         adminName={adminName}
         onSelect={(id) => changeFilter(() => setDepartmentId(id))}
+        onMapSelect={() => setView("map")}
         onLogout={logout}
       />
 
-      <main className="min-w-0 flex-1 px-9 py-8">
+      <main className="flex min-w-0 flex-1 flex-col px-9 py-8">
         <div className="relative flex items-center justify-between">
-          <h1 className="text-[17px] font-bold tracking-[-0.4px] text-neutral-800">신고 목록</h1>
+          <h1 className="text-[17px] font-bold tracking-[-0.4px] text-neutral-800">{view === "map" ? "신고 지도" : "신고 목록"}</h1>
           <button
             type="button"
             aria-label={notificationsOpen ? "알림 닫기" : "알림"}
@@ -153,16 +158,20 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* 요약 */}
-        <div className="mt-5 flex gap-5">
-          <AdminStatCard label="접수완료" value={summary?.received ?? "-"} />
-          <AdminStatCard label="검토중" value={summary?.reviewing ?? "-"} />
-          <AdminStatCard label="처리완료" value={summary?.resolved ?? "-"} />
-          <AdminStatCard label="오늘 신규" value={summary?.todayNew ?? "-"} accent />
-        </div>
+        {view === "map" ? (
+          <AdminMapView onSelectReport={(reportId) => navigate(`/admin/reports/${reportId}`)} />
+        ) : (
+          <>
+            {/* 요약 */}
+            <div className="mt-5 flex gap-5">
+              <AdminStatCard label="접수완료" value={summary?.received ?? "-"} />
+              <AdminStatCard label="검토중" value={summary?.reviewing ?? "-"} />
+              <AdminStatCard label="처리완료" value={summary?.resolved ?? "-"} />
+              <AdminStatCard label="오늘 신규" value={summary?.todayNew ?? "-"} accent />
+            </div>
 
-        {/* 필터 */}
-        <div className="mt-6 flex items-center justify-between gap-4">
+            {/* 필터 */}
+            <div className="mt-6 flex items-center justify-between gap-4">
           <div className="flex gap-2">
             <button
               type="button"
@@ -206,10 +215,10 @@ export default function AdminDashboardPage() {
               className="min-w-0 flex-1 bg-transparent text-sm tracking-[-0.4px] text-neutral-800 outline-none placeholder:text-neutral-300"
             />
           </form>
-        </div>
+            </div>
 
-        {/* 목록 */}
-        <div className="mt-5 overflow-hidden rounded-[10px] bg-gray-10 shadow-[0px_2px_10px_0px_rgba(0,0,0,0.05)]">
+            {/* 목록 */}
+            <div className="mt-5 overflow-hidden rounded-[10px] bg-gray-10 shadow-[0px_2px_10px_0px_rgba(0,0,0,0.05)]">
           <div className="grid grid-cols-[120px_minmax(0,1fr)_150px_120px_160px] border-b border-gray-200 px-6 py-4 text-xs font-medium tracking-[-0.4px] text-neutral-400">
             <span>위험도</span>
             <span>제목</span>
@@ -285,7 +294,9 @@ export default function AdminDashboardPage() {
               </button>
             </div>
           )}
-        </div>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
