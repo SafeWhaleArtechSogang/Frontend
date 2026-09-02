@@ -107,7 +107,7 @@ export default function MyReportsPage() {
 
       {selected ? (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
-          <ReportDetailView report={selected} />
+          <ReportDetailView report={selected} showMyBadge />
         </div>
       ) : (
         <>
