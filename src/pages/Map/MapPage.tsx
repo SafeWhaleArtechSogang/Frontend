@@ -7,6 +7,7 @@ import { reportApi, resolveApiAssetUrl } from "@/api";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import ShareIcon from "@/components/common/ShareIcon";
 import MyBadge from "@/components/common/MyBadge";
+import ReportStatusBadge from "@/components/common/ReportStatusBadge";
 import ReportDetailView from "@/components/report/ReportDetailView";
 import FilterChip from "@/components/map/FilterChip";
 import SafetyPinRow from "@/components/map/SafetyPinRow";
@@ -125,7 +126,7 @@ export default function MapPage() {
         ]);
         if (cancelled) return;
         const mineIds = new Set((activeFilter === "mine" ? reports : mineReports).map((report) => report.id));
-        setAllPins(reports.map((report) => toPin(report, mineIds)));
+        setAllPins(reports.filter((report) => report.status !== "RESOLVED").map((report) => toPin(report, mineIds)));
       } catch (cause) {
         if (!cancelled) setPinsError(cause instanceof Error ? cause.message : "신고 목록을 불러오지 못했습니다.");
       } finally {
@@ -431,6 +432,7 @@ export default function MapPage() {
                 <div className="flex items-center gap-2">
                   <DepartmentChip label={selectedPin.departmentName} />
                   {selectedPin.isMine && <MyBadge />}
+                  <ReportStatusBadge status={selectedPin.status} />
                 </div>
                 <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
                   <button className="size-10 rounded-full bg-sogang-10 flex items-center justify-center transition active:scale-95">

@@ -3,12 +3,15 @@ import ShareIcon from "@/components/common/ShareIcon";
 import { splitDescription } from "@/utils/reportDescription";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import MyBadge from "@/components/common/MyBadge";
+import ReportStatusBadge from "@/components/common/ReportStatusBadge";
 import { resolveApiAssetUrl } from "@/api/http";
+import type { ReportStatus } from "@/types";
 
 export interface ReportDetailData {
   title: string;
   description: string;
   departmentName: string;
+  status: ReportStatus;
   date: string;
   imageUrl?: string;
 }
@@ -40,6 +43,7 @@ export default function ReportDetailView({ report, showMyBadge = false }: Report
           <div className="flex items-center gap-2">
             <DepartmentChip label={report.departmentName} />
             {showMyBadge && <MyBadge />}
+            <ReportStatusBadge status={report.status} />
           </div>
           <div className="flex items-center gap-2.5">
             <button className="size-10 rounded-full bg-sogang-10 flex items-center justify-center transition active:scale-95">

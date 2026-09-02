@@ -98,6 +98,7 @@ export default function AdminMapView({ onSelectReport }: AdminMapViewProps) {
     if (!map) return;
     const markers: any[] = [];
     for (const report of reports) {
+      if (report.status === "RESOLVED") continue;
       if (report.lat == null || report.lng == null) continue;
       const marker = new window.kakao.maps.Marker({
         position: new window.kakao.maps.LatLng(report.lat, report.lng),
@@ -113,7 +114,9 @@ export default function AdminMapView({ onSelectReport }: AdminMapViewProps) {
     return () => markers.forEach((marker) => marker.setMap(null));
   }, [map, onSelectReport, reports]);
 
-  const locatedCount = reports.filter((report) => report.lat != null && report.lng != null).length;
+  const locatedCount = reports.filter(
+    (report) => report.status !== "RESOLVED" && report.lat != null && report.lng != null,
+  ).length;
 
   return (
     <section className="relative mt-5 min-h-[620px] flex-1 overflow-hidden rounded-[10px] bg-bg-tertiary shadow-[0px_2px_10px_0px_rgba(0,0,0,0.05)]">

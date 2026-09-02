@@ -8,13 +8,14 @@ import NotificationPanel from "@/components/notification/NotificationPanel";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/auth";
 import { meApi } from "@/api";
-import type { Report, RiskLevel } from "@/types";
+import type { Report, RiskLevel, ReportStatus } from "@/types";
 
 interface MyReport {
   id: number;
   title: string;
   description: string;
   departmentName: string;
+  status: ReportStatus;
   riskLevel: RiskLevel;
   date: string;
   imageUrl?: string;
@@ -26,6 +27,7 @@ function toMyReport(report: Report): MyReport {
     title: report.locationDescription ?? report.building?.name ?? report.summary ?? "안전 신고",
     description: report.description ?? "상세 내용이 없습니다.",
     departmentName: report.department?.name ?? "담당 부서 배정 중",
+    status: report.status,
     riskLevel: report.riskLevel ?? "MEDIUM",
     date: new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" })
       .format(new Date(report.submittedAt ?? report.createdAt)),
