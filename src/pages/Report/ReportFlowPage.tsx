@@ -811,7 +811,18 @@ export default function ReportFlowPage() {
               아래 지도에서 위치를 직접 이동할 수 있어요.
             </p>
             <MapPreview
-              query={locationQuery}
+              // 검증된 DB 좌표가 있는 건물은 그 좌표를 초기 위치의 기준으로 쓴다.
+              // 좌표가 없는 건물·기타 위치만 입력 문구로 장소를 검색한다.
+              query={
+                isOtherLocation || selectedBuilding?.lat == null || selectedBuilding.lng == null
+                  ? locationQuery
+                  : ""
+              }
+              fallbackQuery={
+                !isOtherLocation && (selectedBuilding?.lat == null || selectedBuilding.lng == null)
+                  ? selectedBuilding?.name
+                  : undefined
+              }
               fallbackLat={selectedBuilding?.lat ?? SOGANG_CENTER.lat}
               fallbackLng={selectedBuilding?.lng ?? SOGANG_CENTER.lng}
               onCoordsChange={setCoords}
@@ -1050,11 +1061,13 @@ function ProposalEditableField({
 // ─── 지도 프리뷰 (고정 중앙 핀 + 드래그로 좌표 변경) ───
 function MapPreview({
   query,
+  fallbackQuery,
   fallbackLat,
   fallbackLng,
   onCoordsChange,
 }: {
   query: string;
+  fallbackQuery?: string;
   fallbackLat: number;
   fallbackLng: number;
   onCoordsChange: (c: { lat: number; lng: number }) => void;
@@ -1080,14 +1093,17 @@ function MapPreview({
       // 답변 위치로 지도 중심 이동
       if (query && w.kakao.maps.services) {
         const ps = new w.kakao.maps.services.Places();
-        ps.keywordSearch(query, (data: any[], status: string) => {
+        const moveToResult = (keyword: string, retryWithBuildingName: boolean) => ps.keywordSearch(keyword, (data: any[], status: string) => {
           if (cancelled) return;
           if (status === w.kakao.maps.services.Status.OK && data[0]) {
             const c = new w.kakao.maps.LatLng(data[0].y, data[0].x);
             map.setCenter(c);
             onCoordsChange({ lat: +data[0].y, lng: +data[0].x });
+          } else if (retryWithBuildingName && fallbackQuery && fallbackQuery !== keyword) {
+            moveToResult(fallbackQuery, false);
           }
         });
+        moveToResult(query, true);
       }
 
       // 드래그 종료 시 중심 좌표 = 신고 좌표
@@ -1099,7 +1115,7 @@ function MapPreview({
     return () => {
       cancelled = true;
     };
-  }, [fallbackLat, fallbackLng, query, onCoordsChange]);
+  }, [fallbackLat, fallbackLng, query, fallbackQuery, onCoordsChange]);
 
   return (
     <div className="isolate relative w-full h-[200px] rounded-[10px] overflow-hidden border border-[#e9e9e9]">
