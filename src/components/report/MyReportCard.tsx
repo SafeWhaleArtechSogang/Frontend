@@ -1,14 +1,14 @@
 import { ChevronRight } from "lucide-react";
 import DepartmentChip from "@/components/common/DepartmentChip";
-import RiskBadge from "@/components/common/RiskBadge";
-import type { RiskLevel } from "@/types";
+import ReportStatusBadge from "@/components/common/ReportStatusBadge";
+import type { ReportStatus } from "@/types";
 import { resolveApiAssetUrl } from "@/api/http";
 
 export interface MyReportCardData {
   title: string;
   description: string;
   departmentName: string;
-  riskLevel: RiskLevel;
+  status: ReportStatus;
   date: string;
   imageUrl?: string;
 }
@@ -35,7 +35,7 @@ export default function MyReportCard({ report, onClick }: MyReportCardProps) {
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
         <div className="flex items-center gap-2">
           <DepartmentChip label={report.departmentName} />
-          <RiskBadge level={report.riskLevel} />
+          <ReportStatusBadge status={report.status} />
         </div>
         <div className="flex flex-col gap-2.5 px-1">
           <div className="flex min-w-0 flex-col gap-0.5">
