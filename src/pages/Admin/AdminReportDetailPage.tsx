@@ -50,6 +50,7 @@ export default function AdminReportDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionNote, setActionNote] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!Number.isFinite(reportId)) return;
@@ -89,11 +90,14 @@ export default function AdminReportDetailPage() {
   }, []);
 
   const downloadReportFile = useCallback(async () => {
+    setDownloading(true);
     try {
       const { url } = await adminApi.generateReportFile(reportId);
       window.open(resolveApiAssetUrl(url), "_blank", "noopener");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "신고서를 내려받지 못했습니다.");
+    } finally {
+      setDownloading(false);
     }
   }, [reportId]);
 
@@ -223,10 +227,20 @@ export default function AdminReportDetailPage() {
             <button
               type="button"
               onClick={downloadReportFile}
-              className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[10px] bg-sogang-500 text-base font-semibold tracking-[-0.4px] text-white shadow-[0px_4px_10px_0px_rgba(169,38,20,0.25)] transition active:brightness-95"
+              disabled={downloading}
+              className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[10px] bg-sogang-500 text-base font-semibold tracking-[-0.4px] text-white shadow-[0px_4px_10px_0px_rgba(169,38,20,0.25)] transition active:brightness-95 disabled:opacity-70"
             >
-              <Download className="size-5" />
-              HWP 신고서 다운로드
+              {downloading ? (
+                <>
+                  <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  다운로드 중...
+                </>
+              ) : (
+                <>
+                  <Download className="size-5" />
+                  HWP 신고서 다운로드
+                </>
+              )}
             </button>
 
             <p className="mt-6 text-xs font-medium tracking-[-0.4px] text-neutral-400">상태 변경</p>
