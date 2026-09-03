@@ -234,7 +234,7 @@ export default function AdminReportDetailPage() {
               value={report.status}
               disabled={saving}
               onChange={(e) => void run(() => adminApi.changeStatus(reportId, e.target.value as ReportStatus))}
-              className="mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
+              className="select-chevron mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
             >
               {FILTER_STATUSES.map((value) => (
                 <option key={value} value={value}>
@@ -248,7 +248,7 @@ export default function AdminReportDetailPage() {
               value={report.department?.id ?? ""}
               disabled={saving}
               onChange={(e) => void run(() => adminApi.reassignDepartment(reportId, Number(e.target.value)))}
-              className="mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
+              className="select-chevron mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
             >
               <option value="" disabled>
                 부서 선택

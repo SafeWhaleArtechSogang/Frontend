@@ -32,7 +32,6 @@ type Msg =
       role: "ai";
       text: string;
       emphasis?: string | string[];
-      topAnchor?: boolean;
     }
   | { id: number; role: "user"; text: string }
   | { id: number; role: "photo" }
@@ -85,6 +84,8 @@ export default function ReportFlowPage() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const proposalScrollRef = useRef<HTMLDivElement>(null);
+  const bottomSpacerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [dockHeight, setDockHeight] = useState(120);
@@ -116,7 +117,6 @@ export default function ReportFlowPage() {
   const [step, setStep] = useState<ReportQuestionStep | null>(null);
   const [directActive, setDirectActive] = useState(false);
   const [directInput, setDirectInput] = useState("");
-  const [pendingScroll, setPendingScroll] = useState<"top" | "bottom">("bottom");
   const [answers, setAnswers] = useState<ReportFlowAnswer[]>([]);
 
   // 신고서 문서 (신고자는 로그인 정보 기반 실명 고정)
@@ -136,6 +136,13 @@ export default function ReportFlowPage() {
       navigate("/profile", { replace: true, state: { from: "/report" } });
     }
   }, [isAuthLoading, isLoggedIn, navigate, user?.profileCompleted]);
+
+  // 채팅과 신고서 화면이 같은 위치의 div라 React가 요소를 재사용해
+  // 채팅에서 내려둔 스크롤 위치가 남는다. 진입 시 맨 위로 올린다.
+  useEffect(() => {
+    if (stage !== "proposal") return;
+    proposalScrollRef.current?.scrollTo({ top: 0 });
+  }, [stage]);
 
   useEffect(() => {
     if (stage !== "buildingSelect") return;
@@ -181,20 +188,49 @@ export default function ReportFlowPage() {
     return () => ros.forEach((ro) => ro?.disconnect());
   }, [stage]);
 
-  // 스크롤: 새 질문은 상단 정렬, 그 외는 하단
+  // 스크롤: 내 답변을 인사 문구와 같은 높이로 올리고, 이어지는 AI 질문은
+  // 그 아래에 나타나도록 스크롤을 건드리지 않는다.
+  const prevCountRef = useRef(0);
+  const anchorIdRef = useRef<number | null>(null);
   useEffect(() => {
-    const cont = scrollRef.current;
-    if (!cont) return;
-    if (pendingScroll === "top") {
-      const nodes = cont.querySelectorAll('[data-anchor="top"]');
-      const last = nodes[nodes.length - 1] as HTMLElement | undefined;
-      if (last) {
-        last.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
-      }
+    const start = messages.length < prevCountRef.current ? 0 : prevCountRef.current;
+    prevCountRef.current = messages.length;
+    const first = messages[start];
+    // 내가 보낸 것(답변·사진)만 상단으로 올린다. AI 답변은 그 아래에 그대로 붙는다.
+    if (first && (first.role === "user" || first.role === "photo")) {
+      anchorIdRef.current = first.id;
     }
-    cont.scrollTo({ top: cont.scrollHeight, behavior: "smooth" });
-  }, [messages, pendingScroll]);
+  }, [messages]);
+
+  // 메시지 추가 직후에는 하단 독 높이가 아직 바뀌는 중이라, 레이아웃이 끝난 뒤 측정한다
+  useEffect(() => {
+    const id = anchorIdRef.current;
+    if (id == null) return;
+    const raf = requestAnimationFrame(() => {
+      const cont = scrollRef.current;
+      const spacer = bottomSpacerRef.current;
+      if (!cont || !spacer) return;
+      const el = cont.querySelector<HTMLElement>(`[data-msg-id="${id}"]`);
+      if (!el) return;
+      spacer.style.height = "0px";
+      void cont.scrollHeight;
+      // offsetTop은 스크롤 위치와 무관해 애니메이션 중에 다시 계산해도 값이 흔들리지 않는다.
+      // 컨테이너 위쪽 패딩(headerHeight + 10)이 인사 문구의 시작 위치다.
+      const target = el.offsetTop - (headerHeight + 10);
+      // 내용이 화면보다 짧으면 스크롤 자체가 생기지 않는다.
+      // 화면을 채우고도 target만큼 더 남도록 아래 여백을 만든다.
+      const paddingBottom = parseFloat(getComputedStyle(cont).paddingBottom) || 0;
+      const contentHeight = spacer.offsetTop + paddingBottom;
+      const needed = target + cont.clientHeight - contentHeight;
+      if (needed > 0) {
+        spacer.style.height = `${needed}px`;
+        // 여백을 만든 직후 스크롤하면 브라우저가 이전 높이 기준으로 잘라내므로 레이아웃을 반영시킨다
+        void cont.scrollHeight;
+      }
+      cont.scrollTo({ top: target, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [messages, headerHeight, dockHeight]);
 
   const addMsgs = (...msgs: MsgInput[]) =>
     setMessages((p) => [...p, ...msgs.map((m) => ({ ...m, id: nextId() }) as Msg)]);
@@ -276,7 +312,6 @@ export default function ReportFlowPage() {
   const startQuestions = (firstStep: ReportQuestionStep) => {
     setStep(firstStep);
     setAnswers([]);
-    setPendingScroll("top");
     addMsgs(
       ...(firstStep.introduction
         ? ([
@@ -284,7 +319,6 @@ export default function ReportFlowPage() {
               role: "ai",
               text: firstStep.introduction,
               emphasis: "질문 세 가지만",
-              topAnchor: true,
             },
           ] as MsgInput[])
         : []),
@@ -326,7 +360,6 @@ export default function ReportFlowPage() {
     const t = text.trim();
     const current = step;
     if (!t || !current || !reportId || submitting) return;
-    setPendingScroll("bottom");
     addMsgs({ role: "user", text: t });
     const nextAnswers = [
       ...answers,
@@ -352,8 +385,7 @@ export default function ReportFlowPage() {
           memo.trim(),
           nextAnswers,
         );
-        setPendingScroll("top");
-        addMsgs({ role: "ai", text: nextStep.question.text, topAnchor: true });
+        addMsgs({ role: "ai", text: nextStep.question.text });
         setStep(nextStep);
         return;
       }
@@ -363,11 +395,9 @@ export default function ReportFlowPage() {
         memo.trim(),
         nextAnswers,
       );
-      setPendingScroll("top");
       addMsgs({
         role: "ai",
         text: "내용을 정리해 신고서를 작성했어요.",
-        topAnchor: true,
       });
       setDraftSummary(generated.summary);
       setHazardContent(generated.hazardContent);
@@ -412,25 +442,13 @@ export default function ReportFlowPage() {
     }
   };
 
-  const handlePhotoRemove = () => {
-    if (reportId) void reportApi.deleteDraft(reportId).catch(() => undefined);
-    // 첫 메시지 재편집
-    setMessages([]);
-    setLocationQuery("");
-    setLocationText("");
-    setSelectedBuilding(null);
-    setIsOtherLocation(false);
-    setReportId(null);
-    setApiError(null);
-    setStage("compose");
-  };
 
   // ─── 신고서 문서 화면 (채팅 아님) ───
   if (stage === "proposal") {
     return (
       <div className="app-shell h-svh w-full flex flex-col" style={{ backgroundColor: BG }}>
         {/* 헤더 */}
-        <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
+        <div className="shrink-0 bg-gradient-to-b from-gray-10 to-transparent">
           <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
           <div className="px-4 pb-2">
             <div className="flex items-center justify-between">
@@ -450,7 +468,10 @@ export default function ReportFlowPage() {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5">
+        <div
+          ref={proposalScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-[30px] flex flex-col gap-5"
+        >
           {apiError && (
             <p className="rounded-[10px] bg-red-50 px-3 py-2 text-sm text-red-700">
               {apiError}
@@ -495,8 +516,8 @@ export default function ReportFlowPage() {
           />
 
           {/* 사진 */}
-          <div className="h-[180px] flex items-center">
-            <div className="h-[180px] w-[269px] max-w-full rounded-[12px] overflow-hidden bg-[#e9e9e9]">
+          <div>
+            <div className="aspect-square w-full rounded-[12px] overflow-hidden bg-[#e9e9e9]">
               {photoUrl && (
                 <img
                   src={photoUrl}
@@ -567,7 +588,7 @@ export default function ReportFlowPage() {
       style={{ backgroundColor: BG }}
     >
       {/* 헤더 (채팅 위 오버레이) */}
-      <div ref={headerRef} className="absolute top-0 left-0 right-0 z-20">
+      <div ref={headerRef} className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-gray-10 to-transparent">
         <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
         <div className="px-4 pb-2">
           <div className="flex items-center justify-between">
@@ -589,7 +610,7 @@ export default function ReportFlowPage() {
       {/* 대화 영역 */}
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
+        className="relative flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 flex flex-col gap-5"
         style={{ paddingTop: headerHeight + 10, paddingBottom: dockHeight + 20 }}
       >
         {/* AI 인사 */}
@@ -610,7 +631,7 @@ export default function ReportFlowPage() {
             return (
               <p
                 key={m.id}
-                data-anchor={m.topAnchor ? "top" : undefined}
+                data-msg-id={m.id}
                 className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4] whitespace-pre-line"
               >
                 {m.emphasis ? renderEmphasis(m.text, m.emphasis) : m.text}
@@ -619,7 +640,7 @@ export default function ReportFlowPage() {
           }
           if (m.role === "user") {
             return (
-              <div key={m.id} className="flex justify-end">
+              <div key={m.id} data-msg-id={m.id} className="flex justify-end">
                 <div
                   className="max-w-[300px] rounded-[20px] px-4 py-3"
                   style={{ backgroundColor: SOGANG_RED }}
@@ -633,7 +654,7 @@ export default function ReportFlowPage() {
           }
           if (m.role === "locationSaved") {
             return (
-              <div key={m.id} className="flex flex-col gap-2.5 items-start">
+              <div key={m.id} data-msg-id={m.id} className="flex flex-col gap-2.5 items-start">
                 <p className="max-w-[300px] text-sm text-[#262626] tracking-[-0.28px] leading-[1.4]">
                   위치를 저장했어요.
                   <br />
@@ -645,7 +666,7 @@ export default function ReportFlowPage() {
           }
           // photo
           return (
-            <div key={m.id} className="flex justify-end">
+            <div key={m.id} data-msg-id={m.id} className="flex justify-end">
               <div className="relative size-[180px] rounded-[12px] overflow-hidden bg-[#e9e9e9]">
                 {photoUrl && (
                   <img
@@ -654,16 +675,22 @@ export default function ReportFlowPage() {
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 )}
-                <button
-                  onClick={handlePhotoRemove}
-                  className="absolute top-1.5 right-1.5 bg-[#262626]/60 rounded-full p-1.5 flex items-center justify-center transition active:scale-90"
-                >
-                  <X className="w-3.5 h-3.5 text-white" />
-                </button>
               </div>
             </div>
           );
         })}
+
+        {/* AI 호출이 몇 초 걸려 비어 보이지 않게, 다음 답변이 올 자리에 진행 상태를 남긴다 */}
+        {submitting && step && (
+          <div className="flex items-center gap-2">
+            <span className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-[#e9e9e9] border-t-sogang-500" />
+            <span className="text-sm text-[#9d9d9d] tracking-[-0.28px] leading-[1.4]">
+              {step.last ? "신고서를 작성하고 있어요..." : "다음 질문을 준비하고 있어요..."}
+            </span>
+          </div>
+        )}
+
+        <div ref={bottomSpacerRef} className="shrink-0" />
       </div>
 
       {/* ─── 하단 독 (채팅 위 오버레이) ─── */}
@@ -740,7 +767,7 @@ export default function ReportFlowPage() {
               신고할 건물을 선택해 주세요.
             </p>
             <select
-              className="w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
+              className="select-chevron w-full h-11 rounded-[10px] border border-[#E3E3E3] bg-white px-3 text-sm text-[#262626] outline-none"
               value={isOtherLocation ? OTHER_LOCATION_VALUE : selectedBuilding?.id ?? ""}
               disabled={buildingsLoading}
               onChange={(e) => {
@@ -872,14 +899,6 @@ export default function ReportFlowPage() {
               <p className="text-base font-medium text-[#262626] tracking-[-0.32px] leading-[1.4]">
                 {step.question.text}
               </p>
-              {/* AI 호출이 몇 초 걸려 비어 보이지 않게 진행 상태를 남긴다 */}
-              {submitting && (
-                <p className="pt-2 text-sm text-[#9d9d9d] tracking-[-0.28px]">
-                  {step.last
-                    ? "신고서를 작성하고 있어요..."
-                    : "다음 질문을 준비하고 있어요..."}
-                </p>
-              )}
             </div>
             {/* 선택지 */}
             {step.question.options.map((opt, i) => (
