@@ -12,7 +12,7 @@ export const STATUS_BADGE: Record<ReportStatus, string> = {
   RECEIVING: "bg-neutral-100 text-neutral-500",
   RECEIVED: "bg-sogang-50 text-sogang-500",
   REVIEWING: "bg-warning-10 text-risk-medium",
-  RESOLVED: "bg-neutral-100 text-neutral-500",
+  RESOLVED: "bg-success-10 text-success-700",
 };
 
 /** 관리자가 필터로 쓰는 상태 (작성중 draft는 제외) */

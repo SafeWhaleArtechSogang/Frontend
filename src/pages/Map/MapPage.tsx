@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, List, X, Heart, Bell } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAuth } from "@/auth";
-import { reportApi, resolveApiAssetUrl } from "@/api";
+import { reportApi, resolveApiAssetUrl, tokenStore } from "@/api";
 import DepartmentChip from "@/components/common/DepartmentChip";
 import ShareIcon from "@/components/common/ShareIcon";
 import MyBadge from "@/components/common/MyBadge";
@@ -83,9 +83,11 @@ export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [activeFilter, setActiveFilter] = useState("all");
-  const [sheetExpanded, setSheetExpanded] = useState(true);
+  // 비로그인 상태로 처음 들어오면 지도를 먼저 보여준다 (시트는 접힘 + 리스트 버튼 노출).
+  // isLoggedIn은 세션 복구 중 잠시 false라 토큰 존재 여부로 판단한다.
+  const [sheetExpanded, setSheetExpanded] = useState(() => Boolean(tokenStore.getAccess()));
   const [sheetFullscreen, setSheetFullscreen] = useState(false);
-  const [showListButton, setShowListButton] = useState(false);
+  const [showListButton, setShowListButton] = useState(() => !tokenStore.getAccess());
   const [sheetHeight, setSheetHeight] = useState(68);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(() => {
@@ -202,10 +204,12 @@ export default function MapPage() {
     };
     const color = colors[level];
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46" fill="none">
-        <path d="M18 0C8.06 0 0 8.06 0 18c0 12.6 18 28 18 28s18-15.4 18-28C36 8.06 27.94 0 18 0z" fill="${color}"/>
-        <circle cx="18" cy="18" r="8" fill="white"/>
-        <circle cx="18" cy="18" r="4" fill="${color}"/>
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="50" viewBox="0 0 40 50" fill="none">
+        <g transform="translate(2,2)">
+          <path d="M18 0C8.06 0 0 8.06 0 18c0 12.6 18 28 18 28s18-15.4 18-28C36 8.06 27.94 0 18 0z" fill="${color}" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+          <circle cx="18" cy="18" r="8" fill="white"/>
+          <circle cx="18" cy="18" r="4" fill="${color}"/>
+        </g>
       </svg>
     `)}`;
   };
@@ -263,8 +267,8 @@ export default function MapPage() {
       if (cancelled) return;
       const markerImage = new window.kakao.maps.MarkerImage(
         createPinSvg(pin.riskLevel),
-        new window.kakao.maps.Size(36, 46),
-        { offset: new window.kakao.maps.Point(18, 46) }
+        new window.kakao.maps.Size(40, 50),
+        { offset: new window.kakao.maps.Point(20, 50) }
       );
       const marker = new window.kakao.maps.Marker({
         position: new window.kakao.maps.LatLng(lat, lng),
@@ -484,7 +488,7 @@ export default function MapPage() {
                 name={user?.name ?? "로그인해 주세요"}
                 detail={
                   [user?.major, user?.studentNo].filter(Boolean).join(" · ") ||
-                  (isLoggedIn ? "프로필 정보 미등록" : "내 신고를 확인할 수 있어요")
+                  (isLoggedIn ? "프로필 정보 미등록" : "신고는 로그인 후 진행할 수 있어요")
                 }
                 onClick={() => navigate(
                   isLoggedIn ? (user?.profileCompleted ? "/my-reports" : "/profile") : "/login",

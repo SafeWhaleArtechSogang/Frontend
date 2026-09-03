@@ -74,35 +74,38 @@ export default function MyReportsPage() {
 
   return (
     <div className="app-shell relative flex h-svh flex-col bg-gray-10">
-      {/* 상단바 (297:4845) */}
-      <div className="flex shrink-0 items-center justify-between px-2.5 pt-2">
+      {/* 상단바 (297:4845) — 신고 화면과 같은 헤더 높이 */}
+      <div className="shrink-0">
+        <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
+        <div className="flex items-center justify-between px-4 pb-2">
         <button
           type="button"
           aria-label="뒤로"
-          className="flex size-9 items-center justify-center transition active:scale-95"
+          className="flex size-11 items-center justify-center transition active:scale-95"
           onClick={() => (selected ? setSelected(null) : navigate("/map"))}
         >
-          <ChevronLeft className="size-6 text-neutral-800" />
+          <ChevronLeft className="size-7 text-neutral-800" />
         </button>
         {!selected && (
           <button
             type="button"
             aria-label="알림"
             onClick={() => setNotificationsOpen((prev) => !prev)}
-            className="relative z-40 flex size-9 items-center justify-center transition active:scale-95"
+            className="relative z-40 flex size-11 items-center justify-center transition active:scale-95"
           >
             {notificationsOpen ? (
-              <X className="size-5 text-neutral-800" />
+              <X className="size-6 text-neutral-800" />
             ) : (
               <span className="relative block">
-                <Bell className="size-5 text-neutral-800" />
+                <Bell className="size-6 text-neutral-800" />
                 {hasUnread && (
-                  <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-sogang-500 ring-2 ring-gray-10" />
+                  <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-sogang-500 ring-2 ring-gray-10" />
                 )}
               </span>
             )}
           </button>
         )}
+        </div>
       </div>
 
       {selected ? (
@@ -113,19 +116,21 @@ export default function MyReportsPage() {
         <>
           {/* 프로필 (297:4765) */}
           <div className="shrink-0 border-b border-gray-200 px-4 pb-4 pt-5">
-            <div className="flex items-center gap-[30px] px-1">
+            <div className="flex items-center gap-4 px-1">
               <ProfileIdentity
                 className="flex-1"
+                wrapDetail
+                avatarSize={73}
                 name={user?.name ?? "사용자"}
                 detail={
-                  [user?.major, user?.studentNo].filter(Boolean).join(" · ") || "프로필 정보 미등록"
+                  [user?.major, user?.studentNo].filter(Boolean).join("\n") || "프로필 정보 미등록"
                 }
               />
-              <div className="flex w-40 shrink-0 flex-col items-center text-neutral-800">
-                <span className="text-xl font-semibold leading-[1.48] tracking-[-0.5px]">
+              <div className="mr-4 flex w-20 shrink-0 flex-col items-center text-neutral-800">
+                <span className="text-2xl font-semibold leading-[1.48] tracking-[-0.6px]">
                   {reports.length}
                 </span>
-                <span className="text-[10px] font-medium leading-[1.48] tracking-[-0.25px]">내 신고</span>
+                <span className="text-sm font-medium leading-[1.48] tracking-[-0.35px]">내 신고</span>
               </div>
             </div>
           </div>

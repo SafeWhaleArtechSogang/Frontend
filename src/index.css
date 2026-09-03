@@ -76,6 +76,8 @@
 
   /* Admin status badge */
   --color-warning-10: #ffefe0;
+  --color-success-10: #e6f4ec;
+  --color-success-700: #1b7f4b;
 
   /* Risk level (bottomsheet 289:3554) */
   --color-risk-high: #a92614;

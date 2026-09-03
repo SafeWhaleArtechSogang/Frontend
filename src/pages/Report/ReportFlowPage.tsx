@@ -431,7 +431,7 @@ export default function ReportFlowPage() {
       <div className="app-shell h-svh w-full flex flex-col" style={{ backgroundColor: BG }}>
         {/* 헤더 */}
         <div className="shrink-0 bg-gradient-to-t from-transparent to-white/80">
-          <div className="h-[44px]" />
+          <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
           <div className="px-4 pb-2">
             <div className="flex items-center justify-between">
               <button
@@ -568,7 +568,7 @@ export default function ReportFlowPage() {
     >
       {/* 헤더 (채팅 위 오버레이) */}
       <div ref={headerRef} className="absolute top-0 left-0 right-0 z-20">
-        <div className="h-[44px]" />
+        <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
         <div className="px-4 pb-2">
           <div className="flex items-center justify-between">
             <button
