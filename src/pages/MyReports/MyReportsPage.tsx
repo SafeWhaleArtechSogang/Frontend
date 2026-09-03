@@ -75,7 +75,7 @@ export default function MyReportsPage() {
   return (
     <div className="app-shell relative flex h-svh flex-col bg-gray-10">
       {/* 상단바 (297:4845) — 신고 화면과 같은 헤더 높이 */}
-      <div className="shrink-0">
+      <div className="shrink-0 bg-gradient-to-b from-gray-10 to-transparent">
         <div style={{ height: "max(44px, env(safe-area-inset-top))" }} />
         <div className="flex items-center justify-between px-4 pb-2">
         <button
