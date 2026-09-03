@@ -243,20 +243,6 @@ export default function AdminReportDetailPage() {
               )}
             </button>
 
-            <p className="mt-6 text-xs font-medium tracking-[-0.4px] text-neutral-400">상태 변경</p>
-            <select
-              value={report.status}
-              disabled={saving}
-              onChange={(e) => void run(() => adminApi.changeStatus(reportId, e.target.value as ReportStatus))}
-              className="select-chevron mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
-            >
-              {FILTER_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {STATUS_LABEL[value]}
-                </option>
-              ))}
-            </select>
-
             <p className="mt-6 text-xs font-medium tracking-[-0.4px] text-neutral-400">담당 부서 재배정</p>
             <select
               value={report.department?.id ?? ""}
@@ -270,6 +256,20 @@ export default function AdminReportDetailPage() {
               {departments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {department.name}
+                </option>
+              ))}
+            </select>
+
+            <p className="mt-6 text-xs font-medium tracking-[-0.4px] text-neutral-400">상태 변경</p>
+            <select
+              value={report.status}
+              disabled={saving}
+              onChange={(e) => void run(() => adminApi.changeStatus(reportId, e.target.value as ReportStatus))}
+              className="select-chevron mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
+            >
+              {FILTER_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {STATUS_LABEL[value]}
                 </option>
               ))}
             </select>
