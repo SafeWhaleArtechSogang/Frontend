@@ -560,7 +560,7 @@ export default function ReportFlowPage() {
                 className="w-full h-11 rounded-[10px] text-base font-semibold text-white tracking-[-0.4px] transition active:brightness-90"
                 style={{ backgroundColor: SOGANG_RED }}
               >
-                {submitting ? "전송 중..." : "시설관리팀에 전송하기"}
+                {submitting ? "전송 중..." : "신고서 전송하기"}
               </button>
             </div>
           </div>
