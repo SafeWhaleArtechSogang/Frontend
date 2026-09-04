@@ -18,6 +18,12 @@ export const STATUS_BADGE: Record<ReportStatus, string> = {
 /** 관리자가 필터로 쓰는 상태 (작성중 draft는 제외) */
 export const FILTER_STATUSES: ReportStatus[] = ["RECEIVED", "REVIEWING", "RESOLVED"];
 
+/**
+ * 상태 변경 드롭다운에 노출할 상태.
+ * 처리완료는 조치 내용이 필요한 별도 API(resolve)가 담당하므로 여기서 제외한다.
+ */
+export const CHANGEABLE_STATUSES: ReportStatus[] = ["RECEIVED", "REVIEWING"];
+
 /** 상세 화면 처리 이력 단계 */
 export const TIMELINE_STEPS: { status: ReportStatus; label: string }[] = [
   { status: "RECEIVED", label: "접수" },

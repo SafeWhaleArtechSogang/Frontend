@@ -4,7 +4,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import { adminApi, type DepartmentWithCount } from "@/api/admin";
 import { resolveApiAssetUrl } from "@/api/http";
 import type { Report, ReportStatus, RiskLevel } from "@/types";
-import { FILTER_STATUSES, STATUS_LABEL, TIMELINE_STEPS } from "@/constants/adminStatus";
+import { CHANGEABLE_STATUSES, STATUS_LABEL, TIMELINE_STEPS } from "@/constants/adminStatus";
 import { RISK_LABEL } from "@/constants/risk";
 import { splitDescription } from "@/utils/reportDescription";
 import RiskBadge from "@/components/common/RiskBadge";
@@ -121,6 +121,7 @@ export default function AdminReportDetailPage() {
 
   const { hazard, improvement } = splitDescription(report.description ?? "");
   const currentIndex = STATUS_ORDER.indexOf(report.status);
+  const resolved = report.status === "RESOLVED";
   const title = report.locationDescription ?? report.building?.name ?? report.summary ?? "안전 신고";
 
   return (
@@ -263,15 +264,21 @@ export default function AdminReportDetailPage() {
             <p className="mt-6 text-xs font-medium tracking-[-0.4px] text-neutral-400">상태 변경</p>
             <select
               value={report.status}
-              disabled={saving}
+              disabled={saving || resolved}
               onChange={(e) => void run(() => adminApi.changeStatus(reportId, e.target.value as ReportStatus))}
-              className="select-chevron mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none"
+              className="select-chevron mt-2 h-[46px] w-full rounded-[10px] border border-gray-400 bg-white px-3.5 text-sm font-medium tracking-[-0.4px] text-neutral-800 outline-none disabled:bg-neutral-50 disabled:text-neutral-400"
             >
-              {FILTER_STATUSES.map((value) => (
+              {CHANGEABLE_STATUSES.map((value) => (
                 <option key={value} value={value}>
                   {STATUS_LABEL[value]}
                 </option>
               ))}
+              {/* 처리완료는 고를 수 없지만, 이미 완료된 신고는 현재 값이 빈칸으로 보이지 않게 남겨둔다 */}
+              {resolved && (
+                <option value="RESOLVED" disabled>
+                  {STATUS_LABEL.RESOLVED}
+                </option>
+              )}
             </select>
 
             <p className="mt-6 text-xs font-medium tracking-[-0.4px] text-neutral-400">위험도 수동 조정</p>
